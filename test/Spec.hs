@@ -3,6 +3,7 @@ import Test.Hspec
 import qualified Parser as P
 import qualified Text.Megaparsec as MP
 import qualified Types as T
+import qualified TestPackages as TestPkgs
 
 parse f = MP.parse f ""
 
@@ -38,9 +39,22 @@ packageExprSuite = context "package expression" $ do
     it "splits name-version properly" $
         parse P.packageExpr "example-0.13.3" `shouldBeOk` T.PackageInfo "example" "0.13.3"
 
+
 main :: IO ()
 main = hspec $ do
     describe "importDecl" importDeclSuite
     describe "comment decl" commentDeclSuite
     describe "module decl" moduleHeaderSuite
     describe "package expr" packageExprSuite
+    describe "packages" TestPkgs.spec
+
+
+
+
+
+
+
+
+
+
+
