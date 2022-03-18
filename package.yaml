@@ -24,6 +24,7 @@ dependencies:
 - text
 - process
 - megaparsec == 9.2.0
+- containers
 
 library:
   source-dirs: src

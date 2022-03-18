@@ -67,6 +67,8 @@ moduleDecl = space *> moduleStart *> parseContent
         intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }
         intoModule _ (T.LineEmpty) mod = mod
 
+packageExpr :: Parser T.PackageInfo
+packageExpr = T.PackageInfo <$> (TxT.pack <$> MP.some MP.letterChar) <*> (char '-' *> consumeLine)
 
 
 

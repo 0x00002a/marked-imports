@@ -34,8 +34,13 @@ moduleHeaderSuite = context "module header suite" $ do
     it "parses module header correctly" $ do
         parse P.moduleDecl "module X\n--comment\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 3) (T.ModuleName "Y"))] [(T.Located (T.Pos 2) (T.SingleLineCmt "comment"))]
 
+packageExprSuite = context "package expression" $ do
+    it "splits name-version properly" $
+        parse P.packageExpr "example-0.13.3" `shouldBeOk` T.PackageInfo "example" "0.13.3"
+
 main :: IO ()
 main = hspec $ do
     describe "importDecl" importDeclSuite
     describe "comment decl" commentDeclSuite
     describe "module decl" moduleHeaderSuite
+    describe "package expr" packageExprSuite
