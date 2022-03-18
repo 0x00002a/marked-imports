@@ -11,9 +11,6 @@ import Data.Maybe (catMaybes)
 import qualified Text.Megaparsec as MP
 import qualified Parser as P
 
-instance MP.ShowErrorComponent Text where
-    showErrorComponent = show
-
 run :: IO ()
 run = case MP.parse P.importDecl "" "import myt Data.Text" of
     Left e -> putStrLn $ MP.errorBundlePretty e
