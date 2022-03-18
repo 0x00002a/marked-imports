@@ -34,6 +34,8 @@ moduleHeaderSuite = context "module header suite" $ do
         parse P.moduleDecl "module X\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))] []
     it "parses module header correctly" $ do
         parse P.moduleDecl "module X\n--comment\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 3) (T.ModuleName "Y"))] [(T.Located (T.Pos 2) (T.SingleLineCmt "comment"))]
+    it "skips language pargmas" $ do
+        parse P.parseFile "{-# LANGUAGE test me #-}\nmodule X\nimport Y" `shouldBeOk` T.Module [T.Located (T.Pos 3) (T.ModuleName "Y")] []
 
 packageExprSuite = context "package expression" $ do
     it "splits name-version properly" $

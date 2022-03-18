@@ -19,7 +19,7 @@ import Data.List (find)
 type GhcPkgMapping = PKG.MappingCtx PKG.GHCPkgSource
 
 run :: T.SourceInfo Text -> IO Text
-run (T.SourceInfo name content) = case MP.parse P.moduleDecl (unpack name) content of
+run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) content of
     Left err -> (pure . pack . MP.errorBundlePretty) err
     Right rs -> TxT.unlines <$> modifyContent content rs
 

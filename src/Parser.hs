@@ -12,7 +12,7 @@ import qualified Text.Megaparsec.Char as MP
 import qualified Data.Text as TxT
 import Data.Text (Text)
 import qualified Types as T
-import Control.Monad (void)
+import Control.Monad (void, (>=>))
 
 type Parser a = MP.Parsec Text Text a
 
@@ -57,8 +57,11 @@ parseLine = MP.choice $ map MP.try [
       , T.LineImport <$> importDecl
     ]
 
+parseFile :: Parser T.Module
+parseFile = MP.skipManyTill consumeLine_ moduleDecl
+
 moduleDecl :: Parser T.Module
-moduleDecl = space *> moduleStart *> parseContent
+moduleDecl = moduleStart *> parseContent
     where
         moduleStart = "module" *> hspace *> moduleName *> consumeLine_
         parseContent = foldl unpackLines mempty <$> MP.some (located parseLine)
