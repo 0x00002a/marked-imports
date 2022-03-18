@@ -18,7 +18,7 @@
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/0.yaml
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/23.yaml
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -36,14 +36,13 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 #
 # extra-deps:
-extra-deps:
-- 'ghc-lib-parser-9.2.2.20220307'
-- 'ghc-lib-parser-ex-9.2.0.3'
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 # extra-deps: []
+extra-deps:
+- megaparsec-9.2.0@sha256:0248397bedfddbb94584925a09ba793cf2327362a3183624bd7bfaed529163cb,3347
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

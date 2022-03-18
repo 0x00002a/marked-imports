@@ -21,10 +21,9 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
-- ghc-lib-parser == 9.2.2.20220307
-- ghc-lib-parser-ex == 9.2.0.3
 - text
 - process
+- megaparsec == 9.2.0
 
 library:
   source-dirs: src
@@ -50,3 +49,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - marked-imports
+    - hspec
