@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Packages (mkCtx, MappingCtx, providerOf, MappingSource(..)) where
+module Packages (mkGhcPkgCtx, mkCtx, GHCPkgSource, MappingCtx, providerOf, MappingSource(..)) where
 
 import qualified System.Process as SP
 import qualified Types as T
@@ -12,6 +12,9 @@ import qualified Text.Megaparsec as MP
 import qualified Data.Text as TxT
 import qualified Parser as P
 import System.Exit (ExitCode(..))
+
+mkGhcPkgCtx :: Text -> MappingCtx GHCPkgSource
+mkGhcPkgCtx = mkCtx . GHCPkgSource
 
 mkCtx :: MappingSource s => s -> MappingCtx s
 mkCtx = MappingCtx mempty

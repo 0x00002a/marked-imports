@@ -6,6 +6,8 @@ import qualified Text.Megaparsec as MP
 data Pos = Pos { srcLine :: !Int } deriving(Eq, Show, Ord)
 data Located a = Located Pos a deriving(Eq, Show, Ord)
 
+data SourceInfo a = SourceInfo { sourceName :: Text, sourceContents :: a }
+
 type Result a = Either Text a
 
 data PackageInfo = PackageInfo { pkgName :: !Text, pkgVersion :: !Text } deriving(Show, Eq, Ord)
@@ -24,5 +26,9 @@ instance Monoid Module where
 
 instance Functor Located where
     fmap f (Located p v) = Located p (f v)
+
+
+unLocated :: Located a -> a
+unLocated (Located _ v) = v
 
 
