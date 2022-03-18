@@ -64,7 +64,7 @@ moduleDecl :: Parser T.Module
 moduleDecl = moduleStart *> parseContent
     where
         moduleStart = "module" *> hspace *> moduleName *> consumeLine_
-        parseContent = foldl unpackLines mempty <$> MP.some (located parseLine)
+        parseContent = foldl unpackLines mempty <$> (MP.skipManyTill consumeLine_ (located parseLine) >>= \s -> (s:) <$> MP.some (located parseLine))
         unpackLines mod (T.Located src v) = intoModule src v mod
         intoModule src (T.LineCmt cmt) mod = mod { T.modComments = (T.Located src cmt):T.modComments mod }
         intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }

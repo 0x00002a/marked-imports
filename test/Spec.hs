@@ -31,11 +31,15 @@ commentDeclSuite = context "comment decl suite" $ do
 
 moduleHeaderSuite = context "module header suite" $ do
     it "parses module header without comment correctly" $ do
-        parse P.moduleDecl "module X\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))] []
+        parse P.moduleDecl "module X\nimport Y" `shouldBeOk` expectedImport 2 []
     it "parses module header correctly" $ do
-        parse P.moduleDecl "module X\n--comment\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 3) (T.ModuleName "Y"))] [(T.Located (T.Pos 2) (T.SingleLineCmt "comment"))]
+        parse P.moduleDecl "module X\n--comment\nimport Y" `shouldBeOk` expectedImport 3 [(T.Located (T.Pos 2) (T.SingleLineCmt "comment"))]
     it "skips language pargmas" $ do
-        parse P.parseFile "{-# LANGUAGE test me #-}\nmodule X\nimport Y" `shouldBeOk` T.Module [T.Located (T.Pos 3) (T.ModuleName "Y")] []
+        parse P.parseFile "{-# LANGUAGE test me #-}\nmodule X\nimport Y" `shouldBeOk` expectedImport 3 []
+    it "skips language pargmas" $ do
+        parse P.moduleDecl "module X (x,\ny)\nimport Y" `shouldBeOk` expectedImport 3 []
+    where
+        expectedImport n = T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))]
 
 packageExprSuite = context "package expression" $ do
     it "splits name-version properly" $
