@@ -28,7 +28,14 @@ commentDeclSuite = context "comment decl suite" $ do
     it "parses {- text -} as a multiline comment spanning 1 lines" $ do
         parse P.commentDecl "{- text -}" `shouldBeOk` T.MultiLineCmt " text " 1
 
+moduleHeaderSuite = context "module header suite" $ do
+    it "parses module header without comment correctly" $ do
+        parse P.moduleDecl "module X\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))] []
+    it "parses module header correctly" $ do
+        parse P.moduleDecl "module X\n--comment\nimport Y" `shouldBeOk` T.Module [(T.Located (T.Pos 3) (T.ModuleName "Y"))] [(T.Located (T.Pos 2) (T.SingleLineCmt "comment"))]
+
 main :: IO ()
 main = hspec $ do
     describe "importDecl" importDeclSuite
     describe "comment decl" commentDeclSuite
+    describe "module decl" moduleHeaderSuite

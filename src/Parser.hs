@@ -24,7 +24,7 @@ instance MP.ShowErrorComponent Text where
     showErrorComponent = show
 
 moduleName :: Parser T.ModuleName
-moduleName = coerce <$> (MP.some (MP.try (moduleSect <> endingChar)) <> ((:[]) <$> moduleSect))
+moduleName = coerce <$> (MP.many (MP.try (moduleSect <> endingChar)) <> ((:[]) <$> moduleSect))
     where
         moduleSect = (TxT.pack <$> MP.some letterChar)
         endingChar = text "."
@@ -47,9 +47,25 @@ commentDecl = MP.try singleLineCmtDecl <|> multiLineCmtDecl
         multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (length (TxT.lines txt))) <$> txtInsideMultiline
         txtInsideMultiline = (hspace *> text "{-" *> (TxT.pack <$> (MP.manyTill MP.anySingle (text "-}"))))
 
+located :: Parser a -> Parser (T.Located a)
+located p =
+    MP.getSourcePos >>= \pos -> (T.Located (T.Pos (MP.unPos $ MP.sourceLine pos))) <$> p
+
+parseLine :: Parser T.Line
+parseLine = MP.choice $ map MP.try [
+        T.LineCmt <$> commentDecl
+      , T.LineImport <$> importDecl
+    ]
 
 moduleDecl :: Parser T.Module
-moduleDecl = undefined
+moduleDecl = space *> moduleStart *> parseContent
+    where
+        moduleStart = "module" *> hspace *> moduleName *> consumeLine_
+        parseContent = foldl unpackLines mempty <$> MP.some (located parseLine)
+        unpackLines mod (T.Located src v) = intoModule src v mod
+        intoModule src (T.LineCmt cmt) mod = mod { T.modComments = (T.Located src cmt):T.modComments mod }
+        intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }
+        intoModule _ (T.LineEmpty) mod = mod
 
 
 
