@@ -20,8 +20,8 @@ type GhcPkgMapping = PKG.MappingCtx PKG.GHCPkgSource
 
 run :: T.SourceInfo Text -> IO Text
 run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) content of
-    Left err -> (pure . pack . MP.errorBundlePretty) err
-    Right rs -> TxT.unlines <$> modifyContent content rs
+    Left err -> (pure . ("parse error: " <>) . pack . MP.errorBundlePretty) err
+    Right rs -> TxT.unlines<$> modifyContent content rs
 
 eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
@@ -33,11 +33,11 @@ packageToComment (T.PackageInfo name _) = "-- " <> name
 modifyContent :: Text -> T.Module -> IO [Text]
 modifyContent txt mod = extractResult <$>
     foldl (\xs x -> xs >>= (\l -> inc <$> (foldLines l x)))
-            (pure (0, [], PKG.mkGhcPkgCtx "ghc-pkg"))
+            (pure (1, [], PKG.mkGhcPkgCtx "ghc-pkg"))
             (TxT.lines txt)
     where
         inc (line, x, y) = (line + 1, x, y)
-        extractResult (_, r, _) = r
+        extractResult (_, r, _) = reverse r
         --sortedMod = mod { T.modImports = sort (T.modImports mod), T.modComments = sort (T.modComments mod) }
         --importOnLine :: Maybe (T.Located T.ModuleName)
         importOnLine line = find (eqByLine (T.Pos line)) (T.modImports mod)
