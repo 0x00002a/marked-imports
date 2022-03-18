@@ -25,6 +25,8 @@ importDeclSuite = context "import decl suite" $ do
 commentDeclSuite = context "comment decl suite" $ do
     it "parses --text as a single line comment" $ do
         parse P.commentDecl "--text" `shouldBeOk` T.SingleLineCmt "text"
+    it "parses {- text -} as a multiline comment spanning 1 lines" $ do
+        parse P.commentDecl "{- text -}" `shouldBeOk` T.MultiLineCmt " text " 1
 
 main :: IO ()
 main = hspec $ do

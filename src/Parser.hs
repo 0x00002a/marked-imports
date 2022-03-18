@@ -44,7 +44,7 @@ commentDecl :: Parser T.Comment
 commentDecl = MP.try singleLineCmtDecl <|> multiLineCmtDecl
     where
         singleLineCmtDecl = T.SingleLineCmt <$> (hspace *> text "--" *> consumeLine)
-        multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (TxT.length txt)) <$> txtInsideMultiline
+        multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (length (TxT.lines txt))) <$> txtInsideMultiline
         txtInsideMultiline = (hspace *> text "{-" *> (TxT.pack <$> (MP.manyTill MP.anySingle (text "-}"))))
 
 
