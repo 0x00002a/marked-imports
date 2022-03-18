@@ -46,12 +46,14 @@ modifyContent txt mod = extractResult <$>
         --foldLines :: (Int, [Text]) -> Text -> IO (Int, [Text])
         foldLines inp@(lineNb, result, pkgCtx) line =
             case importOnLine lineNb of
-                Nothing -> pure inp
+                Nothing -> pure nextV
                 Just mod -> do
                     cmt <- addComment lineNb (T.unLocated mod) pkgCtx
                     case cmt of
-                        Nothing -> pure inp
+                        Nothing -> pure nextV
                         Just (info, ctx) -> pure (lineNb, line:packageToComment info:result, ctx)
+            where
+                nextV = (lineNb, line:result, pkgCtx)
         addComment :: Int -> T.ModuleName -> GhcPkgMapping -> IO (Maybe (T.PackageInfo, GhcPkgMapping))
         addComment lineNb name ctx = case commentOnLine (lineNb - 1) of
             Nothing -> applyCmt <$> wantedPkg name
