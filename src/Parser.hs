@@ -30,12 +30,27 @@ moduleName = coerce <$> (MP.some (MP.try (moduleSect <> endingChar)) <> ((:[]) <
         endingChar = text "."
         coerce = T.ModuleName . foldl (<>) ""
 
-consumeLine :: Parser ()
-consumeLine = MP.skipManyTill MP.anySingle (void MP.eol <|> MP.eof)
+consumeLine_ :: Parser ()
+consumeLine_ = MP.skipManyTill MP.anySingle (void MP.eol <|> MP.eof)
+
+consumeLine :: Parser Text
+consumeLine = TxT.pack <$> MP.manyTill MP.anySingle (void MP.eol <|> MP.eof)
 
 moduleQualifiers = MP.choice [text "qualified"]
 
-importDecl = (text "import" <* space) *> MP.optional moduleQualifiers *> space *> moduleName <* consumeLine
+importDecl = (text "import" <* space) *> MP.optional moduleQualifiers *> space *> moduleName <* consumeLine_
+
+commentDecl :: Parser T.Comment
+commentDecl = MP.try singleLineCmtDecl <|> multiLineCmtDecl
+    where
+        singleLineCmtDecl = T.SingleLineCmt <$> (hspace *> text "--" *> consumeLine)
+        multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (TxT.length txt)) <$> txtInsideMultiline
+        txtInsideMultiline = (hspace *> text "{-" *> (TxT.pack <$> (MP.manyTill MP.anySingle (text "-}"))))
+
+
+moduleDecl :: Parser T.Module
+moduleDecl = undefined
+
 
 
 
