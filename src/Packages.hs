@@ -13,8 +13,8 @@ import qualified Data.Text as TxT
 import qualified Parser as P
 import System.Exit (ExitCode(..))
 
-mkGhcPkgCtx :: Text -> MappingCtx GHCPkgSource
-mkGhcPkgCtx = mkCtx . GHCPkgSource
+mkGhcPkgCtx :: MappingCtx GHCPkgSource
+mkGhcPkgCtx = mkCtx $ GHCPkgSource "ghc-pkg"
 
 mkCtx :: MappingSource s => s -> MappingCtx s
 mkCtx = MappingCtx mempty
