@@ -31,4 +31,7 @@ instance Functor Located where
 unLocated :: Located a -> a
 unLocated (Located _ v) = v
 
+posOf :: Located a -> Pos
+posOf (Located p _) = p
+
 

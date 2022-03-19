@@ -9,7 +9,7 @@ import Data.Text (Text, pack, unpack)
 import qualified Data.Text as TxT
 import Data.Foldable (toList)
 import System.Exit (ExitCode(..))
-import Data.Maybe (catMaybes, fromMaybe, fromJust)
+import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
 import qualified Text.Megaparsec as MP
 import qualified Parser as P
 import qualified Types as T
@@ -34,12 +34,12 @@ eqByLine rx (T.Located lx _) = lx == rx
 packageToComment :: T.PackageInfo -> Text
 packageToComment (T.PackageInfo name _) = "-- " <> name
 
-extractImports :: T.Module -> IO (Map T.PackageInfo [T.ModuleName])
-extractImports mod = fst <$> foldlM doFold (mempty, PKG.mkGhcPkgCtx) (map T.unLocated $ T.modImports mod)
+extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName])
+extractImports mod = fst <$> foldlM doFold (mempty, PKG.mkGhcPkgCtx) (T.modImports mod)
     where
         doFold (xs, ctx) name = do
-            (info, nextCtx) <- fromJust <$> addComment name ctx
-            pure (M.insert info (M.findWithDefault [] info xs) xs, nextCtx)
+            (info, nextCtx) <- fromJust <$> addComment (T.unLocated name) ctx
+            pure (M.insert info (name:M.findWithDefault [] info xs) xs, nextCtx)
 
 addComment :: T.ModuleName -> GhcPkgMapping -> IO (Maybe (T.PackageInfo, GhcPkgMapping))
 addComment name ctx = applyCmt <$> wantedPkg name
@@ -52,29 +52,29 @@ modifyContent :: Text -> T.Module -> IO [Text]
 modifyContent txt mod = extractResult <$>
     foldl (\xs x -> xs >>= (\l -> inc <$> (foldLines l x)))
             (pure (1, [], PKG.mkGhcPkgCtx))
-            (TxT.lines txt)
+            lines
     where
+        lines = TxT.lines txt
+        txtForImport imp = lines !! ((T.srcLine $ T.posOf imp) - 1)
         inc (line, x, y) = (line + 1, x, y)
-        extractResult (_, r, _) = reverse r
+        extractResult (_, r, _) = r
         --sortedMod = mod { T.modImports = sort (T.modImports mod), T.modComments = sort (T.modComments mod) }
         --importOnLine :: Maybe (T.Located T.ModuleName)
         importOnLine line = find (eqByLine (T.Pos line)) (T.modImports mod)
         commentOnLine line = find (eqByLine (T.Pos line)) (T.modComments mod)
+        importLines = map (T.srcLine . T.posOf) $ T.modImports mod
+        importsRange = (minimum importLines, maximum importLines)
 
-        --foldLines :: (Int, [Text]) -> Text -> IO (Int, [Text])
-        foldLines inp@(lineNb, result, pkgCtx) line =
-            case importOnLine lineNb of
-                Nothing -> pure nextV
-                Just mod ->
-                    case commentOnLine (lineNb - 1) of
-                        Just _ -> pure nextV -- ignore imports with a comment above already
-                        Nothing -> do
-                            cmt <- addComment (T.unLocated mod) pkgCtx
-                            case cmt of
-                                Nothing -> pure nextV
-                                Just (info, ctx) -> pure (lineNb, line:packageToComment info:result, ctx)
+        --foldLines :: (Int, [Text], GhcPkgMapping) -> Text -> IO (Int, [Text], GhcPkgMapping)
+        foldLines inp@(lineNb, result, pkgCtx) line
+            | lineNb == fst importsRange = do
+                extracted <- extractImports mod
+                let commented = concatMap (\(pkg, imports) -> packageToComment pkg:map txtForImport imports) $ M.toList extracted
+                pure (lineNb, result ++ commented, pkgCtx)
+            | isJust (importOnLine lineNb) = pure inp
+            | otherwise = pure nextV
             where
-                nextV = (lineNb, line:result, pkgCtx)
+                nextV = (lineNb, result ++ [line], pkgCtx)
 
 
 
