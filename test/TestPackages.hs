@@ -18,21 +18,25 @@ instance PKG.MappingSource MockTestProvider where
     providerOfModule (MockTestProvider f) (T.ModuleName n) = pure $ Right (f n)
 
 expectedPackaged = T.PackageInfo "testpkg"
-testingCtx =
+testingCtx pkg =
             (PKG.mkCtx
-                (MockTestProvider (const expectedPackaged)))
+                (MockTestProvider (const pkg)))
 
 spec :: Spec
 spec = context "packages context" $ do
     describe "mocked backend" $ do
         it "lookups up text" $ do
-            PKG.providerOf testingCtx (T.ModuleName "somemodule")
+            PKG.providerOf (testingCtx expectedPackaged) (T.ModuleName "somemodule")
             >>= \v -> do
                 fst v `shouldBe` (Right $ expectedPackaged)
-                snd v `shouldBe` testingCtx
+                snd v `shouldBe` (testingCtx expectedPackaged)
     describe "ghc-pkg backend" $ do
         it "matches base correct" $ do
             v <- PKG.providerOf PKG.mkGhcPkgCtx (T.ModuleName "Data.Maybe")
             fst v `shouldBe` Right (T.PackageInfo "base")
+    describe "local matcher" $ do
+        it "converts marked-imports to local" $ do
+            p <- PKG.providerOf (PKG.mkLocalMatcher <$> (testingCtx $ T.PackageInfo "marked-imports")) (T.ModuleName "")
+            fst p `shouldBe` Right (T.PackageInfo "local")
 
 

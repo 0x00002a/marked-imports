@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module TestLUtil where
 
 import Test.Hspec
@@ -11,5 +12,10 @@ spec = describe "test util" $ do
             LU.mconcatInfix "v" ["v1"] `shouldBe` "v1"
         it "results in 1 <> v <> 2 for multvalued input" $ do
             LU.mconcatInfix "|" ["v1", "v2"] `shouldBe` "v1|v2"
+    describe "nameOfLocalPackage" $ do
+        it "should be marked-imports" $ do
+            n <- LU.nameOfLocalPackage
+            n `shouldBe` (Just "marked-imports")
+
 
 

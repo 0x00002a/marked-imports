@@ -34,4 +34,9 @@ unLocated (Located _ v) = v
 posOf :: Located a -> Pos
 posOf (Located p _) = p
 
+err :: Text -> Result a
+err = Left
+ok :: a -> Result a
+ok = Right
+
 

@@ -20,7 +20,6 @@ import qualified Data.Map as M
 import Control.Monad (foldM)
 import Data.Foldable (foldlM)
 
-type GhcPkgMapping = PKG.MappingCtx PKG.GHCPkgSource
 
 run :: T.SourceInfo Text -> IO Text
 run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) content of
@@ -43,7 +42,7 @@ extractImports mod = fst <$> foldlM doFold (mempty, pkgLookupCtx) (T.modImports 
             (info, nextCtx) <- fromJust <$> addComment (T.unLocated name) ctx
             pure (M.insert info (name:M.findWithDefault [] info xs) xs, nextCtx)
 
-addComment :: T.ModuleName -> GhcPkgMapping -> IO (Maybe (T.PackageInfo, GhcPkgMapping))
+addComment :: PKG.MappingSource s => T.ModuleName -> PKG.MappingCtx s -> IO (Maybe (T.PackageInfo, PKG.MappingCtx s))
 addComment name ctx = applyCmt <$> wantedPkg name
     where
         wantedPkg n = PKG.providerOf ctx n

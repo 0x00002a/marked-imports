@@ -1,7 +1,8 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Packages (mkGhcPkgCtx, mkCtx, GHCPkgSource, MappingCtx, providerOf, MappingSource(..)) where
+module Packages (mkStackCtx, mkLocalMatcher, mkGhcPkgCtx, mkCtx, GHCPkgSource, MappingCtx, providerOf, MappingSource(..), StackEnv, LocalPkgMatcher) where
 
 import qualified System.Process as SP
 import qualified Types as T
@@ -12,12 +13,19 @@ import qualified Text.Megaparsec as MP
 import qualified Data.Text as TxT
 import qualified Parser as P
 import System.Exit (ExitCode(..))
+import qualified System.Directory as SD
+import Data.List (find)
+import Data.Maybe (fromMaybe)
+import qualified LUtil as Util
 
 mkGhcPkgCtx :: MappingCtx GHCPkgSource
 mkGhcPkgCtx = mkCtx $ GHCPkgSource "ghc-pkg"
 
 mkStackCtx :: RunnableProcess a => MappingCtx a -> MappingCtx (StackEnv a)
 mkStackCtx = fmap StackEnv
+
+mkLocalMatcher :: MappingSource s => s -> LocalPkgMatcher s
+mkLocalMatcher = LocalPkgMatcher
 
 mkCtx :: MappingSource s => s -> MappingCtx s
 mkCtx = MappingCtx mempty
@@ -27,16 +35,30 @@ data MappingCtx a = MappingCtx { mCtxCache :: !(Map T.ModuleName T.PackageInfo),
 data GHCPkgSource = GHCPkgSource { ghcPkgCmd :: !Text }
 
 newtype StackEnv a = StackEnv a
+newtype LocalPkgMatcher a = LocalPkgMatcher a
+
+instance (RunnableProcess a, MappingSourceCmd a, MappingSource a) => MappingSource (StackEnv a) where
+    providerOfModule ctx@(StackEnv ctxm) n = providerOfModuleCmd ctxm (process ctx n) n
 
 class RunnableProcess a where
     process :: a -> T.ModuleName -> SP.CreateProcess
     pname :: a -> Text
+
+instance RunnableProcess SP.CreateProcess where
+    process v _ = v
+    pname = TxT.pack . cmdName . SP.cmdspec
+
+class MappingSourceCmd a where
+    providerOfModuleCmd :: (RunnableProcess s) => a -> (s -> T.ModuleName -> IO (T.Result T.PackageInfo))
 
 class MappingSource a where
     providerOfModule :: a -> T.ModuleName -> IO (T.Result T.PackageInfo)
 
 instance MappingSource GHCPkgSource where
     providerOfModule = packageInfoFromGHC
+
+instance MappingSourceCmd GHCPkgSource where
+    providerOfModuleCmd _ = packageInfoFromGHC
 
 instance Functor MappingCtx where
     fmap f ctx = ctx { mCtxLookup = f (mCtxLookup ctx) }
@@ -53,8 +75,22 @@ instance RunnableProcess a => RunnableProcess (StackEnv a) where
     pname (StackEnv comp) = "stack/" <> pname comp
 
 instance RunnableProcess GHCPkgSource where
-    process ctx name = SP.proc (TxT.unpack (ghcPkgCmd ctx)) ["--simple-output", "--names-only", "find-module", TxT.unpack (T.modName name)]
+    process ctx name = SP.proc (TxT.unpack $ pname ctx) ["--simple-output", "--names-only", "find-module", TxT.unpack (T.modName name)]
     pname = ghcPkgCmd
+
+instance MappingSource s => MappingSource (LocalPkgMatcher s) where
+    providerOfModule (LocalPkgMatcher ctx) name = do
+        minfo <- wrapped
+        mlocalName <- Util.nameOfLocalPackage
+        pure $ do
+            info <- minfo
+            pkgName <- maybe (T.err "could not find cabal file") T.ok mlocalName
+            pure $ if T.pkgName info == pkgName
+                then T.PackageInfo "local"
+                else info
+        where
+            wrapped = providerOfModule ctx name
+
 
 providerOf :: MappingSource s => MappingCtx s -> T.ModuleName -> IO (T.Result T.PackageInfo, MappingCtx s)
 providerOf ctx name = case M.lookup name (mCtxCache ctx) of
