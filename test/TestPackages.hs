@@ -17,7 +17,7 @@ instance Eq MockTestProvider where
 instance PKG.MappingSource MockTestProvider where
     providerOfModule (MockTestProvider f) (T.ModuleName n) = pure $ Right (f n)
 
-expectedPackaged = T.PackageInfo "testpkg" "0.1.0"
+expectedPackaged = T.PackageInfo "testpkg"
 testingCtx =
             (PKG.mkCtx
                 (MockTestProvider (const expectedPackaged)))

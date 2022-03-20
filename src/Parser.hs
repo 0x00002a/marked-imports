@@ -13,6 +13,8 @@ import qualified Data.Text as TxT
 import Data.Text (Text)
 import qualified Types as T
 import Control.Monad (void, (>=>))
+import Data.Maybe (catMaybes, fromMaybe)
+import qualified LUtil as Util
 
 type Parser a = MP.Parsec Text Text a
 
@@ -70,9 +72,19 @@ moduleDecl = moduleStart *> parseContent
         intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }
         intoModule _ (T.LineEmpty) mod = mod
 
-packageExpr :: Parser T.PackageInfo
-packageExpr = T.PackageInfo <$> (TxT.pack <$> MP.some MP.letterChar) <*> (char '-' *> consumeLine)
+word :: Parser Text
+word = TxT.pack <$> MP.many MP.letterChar
 
+(><>) :: (Applicative m, Semigroup a) => m a -> m a -> m a
+l ><> r = (<>) <$> l <*> r
+
+
+packageExpr :: Parser T.PackageInfo
+packageExpr = T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
+    where
+        removeDash v = fromMaybe v $ TxT.stripSuffix "-" v
+        versionExpr = text "-" ><> tNum ><> (mconcat <$> MP.many (text "." ><> tNum))
+        tNum = TxT.singleton <$> MP.numberChar
 
 
 

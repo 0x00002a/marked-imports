@@ -32,7 +32,7 @@ eqByLine rx (T.Located lx _) = lx == rx
 
 
 packageToComment :: T.PackageInfo -> Text
-packageToComment (T.PackageInfo name _) = "-- " <> name
+packageToComment pkg = "-- " <> T.pkgName pkg
 
 extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName])
 extractImports mod = fst <$> foldlM doFold (mempty, PKG.mkGhcPkgCtx) (T.modImports mod)

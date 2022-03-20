@@ -4,8 +4,10 @@ import qualified Parser as P
 import qualified Text.Megaparsec as MP
 import qualified Types as T
 import qualified TestPackages as TestPkgs
+import qualified TestLUtil as TestUtil
+import Util (toPretty)
 
-parse f = MP.parse f ""
+parse f = toPretty . MP.parse f ""
 
 
 moduleTxt qualifiers name = ("import " <> qualifiers <> " " <> name, Right $ T.ModuleName name)
@@ -42,8 +44,12 @@ moduleHeaderSuite = context "module header suite" $ do
         expectedImport n = T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))]
 
 packageExprSuite = context "package expression" $ do
+    it "splits name properly" $
+        parse (P.packageExpr) "example" `shouldBeOk` T.PackageInfo "example"
     it "splits name-version properly" $
-        parse P.packageExpr "example-0.13.3" `shouldBeOk` T.PackageInfo "example" "0.13.3"
+        parse (P.packageExpr) "example-0.13.3" `shouldBeOk` T.PackageInfo "example"
+    it "handles name-with-dash-version properly" $ do
+        parse (P.packageExpr) "example-dash-0.1.2" `shouldBeOk` T.PackageInfo "example-dash"
 
 
 main :: IO ()
@@ -53,6 +59,7 @@ main = hspec $ do
     describe "module decl" moduleHeaderSuite
     describe "package expr" packageExprSuite
     describe "packages" TestPkgs.spec
+    TestUtil.spec
 
 
 

@@ -10,7 +10,7 @@ data SourceInfo a = SourceInfo { sourceName :: Text, sourceContents :: a }
 
 type Result a = Either Text a
 
-data PackageInfo = PackageInfo { pkgName :: !Text, pkgVersion :: !Text } deriving(Show, Eq, Ord)
+data PackageInfo = PackageInfo { pkgName :: !Text } deriving(Show, Eq, Ord)
 
 data ModuleName = ModuleName { modName :: !Text } deriving(Show, Eq, Ord)
 data Module = Module { modImports :: [Located ModuleName], modComments :: [Located Comment] } deriving (Eq, Show)
