@@ -41,7 +41,7 @@ moduleHeaderSuite = context "module header suite" $ do
     it "skips language pargmas" $ do
         parse P.moduleDecl "module X (x,\ny)\nimport Y" `shouldBeOk` expectedImport 3 []
     where
-        expectedImport n = T.Module [(T.Located (T.Pos 2) (T.ModuleName "Y"))]
+        expectedImport n = T.Module [(T.Located (T.Pos n) (T.ModuleName "Y"))]
 
 packageExprSuite = context "package expression" $ do
     it "splits name properly" $
