@@ -31,11 +31,13 @@ eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
 
 
+pkgLookupCtx = PKG.mkStackCtx PKG.mkGhcPkgCtx
+
 packageToComment :: T.PackageInfo -> Text
 packageToComment pkg = "-- " <> T.pkgName pkg
 
 extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName])
-extractImports mod = fst <$> foldlM doFold (mempty, PKG.mkGhcPkgCtx) (T.modImports mod)
+extractImports mod = fst <$> foldlM doFold (mempty, pkgLookupCtx) (T.modImports mod)
     where
         doFold (xs, ctx) name = do
             (info, nextCtx) <- fromJust <$> addComment (T.unLocated name) ctx
@@ -51,7 +53,7 @@ addComment name ctx = applyCmt <$> wantedPkg name
 modifyContent :: Text -> T.Module -> IO [Text]
 modifyContent txt mod = extractResult <$>
     foldl (\xs x -> xs >>= (\l -> inc <$> (foldLines l x)))
-            (pure (1, [], PKG.mkGhcPkgCtx))
+            (pure (1, [], pkgLookupCtx))
             lines
     where
         lines = TxT.lines txt
