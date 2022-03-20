@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Packages (mkStackCtx, mkLocalMatcher, mkGhcPkgCtx, mkCtx, GHCPkgSource, MappingCtx, providerOf, MappingSource(..), StackEnv, LocalPkgMatcher) where
+module Packages (mkDefaultCtx, mkStackCtx, mkLocalMatcher, mkGhcPkgCtx, mkCtx, GHCPkgSource, MappingCtx, providerOf, MappingSource(..), StackEnv, LocalPkgMatcher) where
 
 import qualified System.Process as SP
 import qualified Types as T
@@ -17,6 +17,9 @@ import qualified System.Directory as SD
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import qualified LUtil as Util
+
+mkDefaultCtx :: MappingCtx (LocalPkgMatcher (StackEnv GHCPkgSource))
+mkDefaultCtx = mkLocalMatcher <$> mkStackCtx mkGhcPkgCtx
 
 mkGhcPkgCtx :: MappingCtx GHCPkgSource
 mkGhcPkgCtx = mkCtx $ GHCPkgSource "ghc-pkg"

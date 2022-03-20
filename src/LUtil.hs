@@ -7,7 +7,10 @@ import Data.Text (Text)
 import Data.List (find)
 import Data.Maybe (fromJust)
 import Control.Monad ((<=<))
+import qualified Types as T
 
+result :: Text -> Maybe a -> T.Result a
+result v = maybe (T.err v) T.ok
 
 mconcatInfix :: (Monoid m) => m -> [m] -> m
 mconcatInfix v [] = mempty

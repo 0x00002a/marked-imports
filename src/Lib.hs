@@ -19,28 +19,37 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Monad (foldM)
 import Data.Foldable (foldlM)
+import Control.Arrow (first)
+import Data.Bifunctor (Bifunctor(bimap))
+import qualified LUtil as Util
 
-
-run :: T.SourceInfo Text -> IO Text
+run :: T.SourceInfo Text -> IO (Text, Text)
 run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) content of
-    Left err -> (pure . ("parse error: " <>) . pack . MP.errorBundlePretty) err
-    Right rs -> TxT.unlines<$> modifyContent content rs
+    Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
+    Right rs -> bimap TxT.unlines unpackErrs <$> modifyContent content rs
+    where
+      unpackErrs :: [T.Located T.ModuleName] -> Text
+      unpackErrs [] = ""
+      unpackErrs xs = "could not find packages for: \n-  " <> Util.mconcatInfix "\n-  " (map (T.modName . T.unLocated) xs)
 
 eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
 
 
-pkgLookupCtx = PKG.mkStackCtx PKG.mkGhcPkgCtx
+pkgLookupCtx = PKG.mkDefaultCtx
 
 packageToComment :: T.PackageInfo -> Text
 packageToComment pkg = "-- " <> T.pkgName pkg
 
-extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName])
-extractImports mod = fst <$> foldlM doFold (mempty, pkgLookupCtx) (T.modImports mod)
+-- Second result is errors
+extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName], [T.Located T.ModuleName])
+extractImports mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.modImports mod)
     where
-        doFold (xs, ctx) name = do
-            (info, nextCtx) <- fromJust <$> addComment (T.unLocated name) ctx
-            pure (M.insert info (name:M.findWithDefault [] info xs) xs, nextCtx)
+        doFold ((xs, errs), ctx) name = do
+            minfo <- addComment (T.unLocated name) ctx
+            pure $ case minfo of
+                Nothing -> ((xs, name:errs), ctx)
+                Just (info, nextCtx) -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
 
 addComment :: PKG.MappingSource s => T.ModuleName -> PKG.MappingCtx s -> IO (Maybe (T.PackageInfo, PKG.MappingCtx s))
 addComment name ctx = applyCmt <$> wantedPkg name
@@ -49,10 +58,10 @@ addComment name ctx = applyCmt <$> wantedPkg name
         applyCmt (Left _, _) = Nothing -- TODO: Report this error?
         applyCmt (Right rs, ctx) = Just (rs, ctx)
 
-modifyContent :: Text -> T.Module -> IO [Text]
+modifyContent :: Text -> T.Module -> IO ([Text], [T.Located T.ModuleName])
 modifyContent txt mod = extractResult <$>
-    foldl (\xs x -> xs >>= (\l -> inc <$> (foldLines l x)))
-            (pure (1, [], pkgLookupCtx))
+    foldlM (\xs x -> fmap inc (foldLines xs x))
+            (1, ([], []), pkgLookupCtx)
             lines
     where
         lines = TxT.lines txt
@@ -67,15 +76,16 @@ modifyContent txt mod = extractResult <$>
         importsRange = (minimum importLines, maximum importLines)
 
         --foldLines :: (Int, [Text], GhcPkgMapping) -> Text -> IO (Int, [Text], GhcPkgMapping)
-        foldLines inp@(lineNb, result, pkgCtx) line
+        toCommentGroup (pkg, imports) = packageToComment pkg:map txtForImport imports
+        commented = concatMap toCommentGroup . M.toList
+        foldLines inp@(lineNb, xs@(result, errs), pkgCtx) line
             | lineNb == fst importsRange = do
                 extracted <- extractImports mod
-                let commented = concatMap (\(pkg, imports) -> packageToComment pkg:map txtForImport imports) $ M.toList extracted
-                pure (lineNb, result ++ commented, pkgCtx)
+                pure (lineNb, xs <> first commented extracted, pkgCtx)
             | isJust (importOnLine lineNb) = pure inp
             | otherwise = pure nextV
             where
-                nextV = (lineNb, result ++ [line], pkgCtx)
+                nextV = (lineNb, first (++ [line]) xs, pkgCtx)
 
 
 

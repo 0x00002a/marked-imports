@@ -3,6 +3,8 @@ module Types where
 import Data.Text (Text)
 import qualified Text.Megaparsec as MP
 
+type ErrMsg = Text
+
 data Pos = Pos { srcLine :: !Int } deriving(Eq, Show, Ord)
 data Located a = Located Pos a deriving(Eq, Show, Ord)
 
@@ -38,5 +40,4 @@ err :: Text -> Result a
 err = Left
 ok :: a -> Result a
 ok = Right
-
 
