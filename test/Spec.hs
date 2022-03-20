@@ -6,6 +6,7 @@ import qualified Types as T
 import qualified TestPackages as TestPkgs
 import qualified TestLUtil as TestUtil
 import Util (toPretty)
+import Data.Either (isLeft)
 
 parse f = toPretty . MP.parse f ""
 
@@ -52,10 +53,17 @@ packageExprSuite = context "package expression" $ do
         parse (P.packageExpr) "example-dash-0.1.2" `shouldBeOk` T.PackageInfo "example-dash"
 
 packageSpecSuite = context "package spec" $ do
+    it "fails for empty input" $ do
+        parse P.packageSpec "" `shouldSatisfy` isLeft
     it "parses simple case correctly" $ do
-        parse P.packageSpec "name: testme\nexposed-modules: Data.TA Data.TB" `shouldBeOk` expected
+        parse P.packageSpec basicInput `shouldBeOk` expected
+    it "parses single case correctly" $ do
+        parse P.ghcPkgDump basicInput `shouldBeOk` [expected]
+    it "parses multicase correctly" $ do
+        parse P.ghcPkgDump (basicInput <> "\n---\n" <> basicInput) `shouldBeOk` [expected, expected]
     where
         expected = T.PackageSpec (T.PackageInfo "testme") [T.ModuleName "Data.TA", T.ModuleName "Data.TB"]
+        basicInput = "name: testme\nexposed-modules: Data.TA Data.TB" -- TODO: QuickCheck this
 
 
 main :: IO ()

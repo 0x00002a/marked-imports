@@ -5,7 +5,7 @@ module Parser where
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Debug as MP
-import Text.Megaparsec ((<|>))
+import Text.Megaparsec ((<|>), label, (<?>))
 import Text.Megaparsec.Char (string, space, hspace, char, letterChar)
 import qualified Text.Megaparsec.Char as MP
 
@@ -26,7 +26,7 @@ instance MP.ShowErrorComponent Text where
     showErrorComponent = show
 
 moduleName :: Parser T.ModuleName
-moduleName = coerce <$> (MP.many (MP.try (moduleSect <> endingChar)) <> ((:[]) <$> moduleSect))
+moduleName = label "module name" $ coerce <$> (MP.many (MP.try (moduleSect <> endingChar)) <> ((:[]) <$> moduleSect))
     where
         moduleSect = (TxT.pack <$> MP.some letterChar)
         endingChar = text "."
@@ -43,7 +43,7 @@ moduleQualifiers = MP.choice [text "qualified"]
 importDecl = (text "import" <* space) *> MP.optional moduleQualifiers *> space *> moduleName <* consumeLine_
 
 commentDecl :: Parser T.Comment
-commentDecl = MP.try singleLineCmtDecl <|> multiLineCmtDecl
+commentDecl = label "comment" $ MP.try singleLineCmtDecl <|> multiLineCmtDecl
     where
         singleLineCmtDecl = T.SingleLineCmt <$> (hspace *> text "--" *> consumeLine)
         multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (length (TxT.lines txt))) <$> txtInsideMultiline
@@ -63,7 +63,7 @@ parseFile :: Parser T.Module
 parseFile = MP.skipManyTill consumeLine_ moduleDecl
 
 moduleDecl :: Parser T.Module
-moduleDecl = moduleStart *> parseContent
+moduleDecl = label "module declaration" $ moduleStart *> parseContent
     where
         moduleStart = "module" *> hspace *> moduleName *> consumeLine_
         parseContent = foldl unpackLines mempty <$> do
@@ -76,14 +76,14 @@ moduleDecl = moduleStart *> parseContent
         intoModule _ (T.LineEmpty) mod = mod
 
 word :: Parser Text
-word = TxT.pack <$> MP.many MP.letterChar
+word = label "word" $ TxT.pack <$> MP.many MP.letterChar
 
 (><>) :: (Applicative m, Semigroup a) => m a -> m a -> m a
 l ><> r = (<>) <$> l <*> r
 
 
 packageExpr :: Parser T.PackageInfo
-packageExpr = T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
+packageExpr = label "package expr" $ T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
     where
         removeDash v = fromMaybe v $ TxT.stripSuffix "-" v
         versionExpr = text "-" ><> tNum ><> (mconcat <$> MP.many (text "." ><> tNum))
@@ -91,10 +91,14 @@ packageExpr = T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepB
 
 
 packageSpec :: Parser T.PackageSpec
-packageSpec = T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
+packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
     where
         name = T.PackageInfo <$> (text "name:" *> hspace *> word)
-        exposes = text "exposed-modules:" *> space *> MP.sepBy moduleName space
+        exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* space)
+
+ghcPkgDump :: Parser [T.PackageSpec]
+ghcPkgDump = label "ghc-pkg dump" $
+        MP.many (MP.try $ packageSpec <* MP.skipManyTill MP.anySingle (text "---\n")) <> ((:[]) <$> packageSpec)
 
 
 
