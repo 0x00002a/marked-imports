@@ -18,7 +18,7 @@ import qualified Parser as P
 import qualified Text.Megaparsec as MP
 import qualified LUtil as Util
 import qualified Data.Map as M
-
+import Debug.Trace (trace)
 import Prelude hiding (lookup)
 
 newtype GhcPkgCmd = GhcPkgCmd ([String] -> SP.CreateProcess)

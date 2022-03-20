@@ -21,6 +21,8 @@ importDeclSuite = context "import decl suite" $ do
 
             it "can parse a qualified import" $ do
                 parse P.importDecl (txt "qualified") `shouldBe` expected
+            it "fails to parse an empty" $ do
+                parse P.importDecl "" `shouldSatisfy` isLeft
     where
         base qual = moduleTxt qual "X.Y"
         expected = snd $ base ""
