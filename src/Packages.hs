@@ -43,11 +43,11 @@ packageInfoFromGHC ctx name = checkResult <$> runGhcPkg
         runGhcPkg :: IO (ExitCode, String, String)
         runGhcPkg =
             SP.readCreateProcessWithExitCode
-                (SP.proc (TxT.unpack (ghcPkgCmd ctx)) ["--simple-output", "find-module", TxT.unpack (T.modName name)])
+                (SP.proc (TxT.unpack (ghcPkgCmd ctx)) ["--simple-output", "--names-only", "find-module", TxT.unpack (T.modName name)])
                 ""
 
 parsePackageInfo :: Text -> T.Result T.PackageInfo
-parsePackageInfo txt = case MP.parseMaybe P.packageExpr txt of
+parsePackageInfo txt = case MP.parseMaybe (P.packageExpr <* P.consumeLine_) txt of
     Nothing -> Left $ "failed to parse package: " <> txt
     Just v -> Right v
 

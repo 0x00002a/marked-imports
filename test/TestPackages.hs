@@ -24,9 +24,15 @@ testingCtx =
 
 spec :: Spec
 spec = context "packages context" $ do
-    it "lookups up text" $ do
-        PKG.providerOf testingCtx (T.ModuleName "somemodule")
-        >>= \v -> do
-            fst v `shouldBe` (Right $ expectedPackaged)
-            snd v `shouldBe` testingCtx
+    describe "mocked backend" $ do
+        it "lookups up text" $ do
+            PKG.providerOf testingCtx (T.ModuleName "somemodule")
+            >>= \v -> do
+                fst v `shouldBe` (Right $ expectedPackaged)
+                snd v `shouldBe` testingCtx
+    describe "ghc-pkg backend" $ do
+        it "matches base correct" $ do
+            v <- PKG.providerOf PKG.mkGhcPkgCtx (T.ModuleName "Data.Maybe")
+            fst v `shouldBe` Right (T.PackageInfo "base")
+
 
