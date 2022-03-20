@@ -53,3 +53,14 @@ tests:
     dependencies:
     - marked-imports
     - hspec
+benchmarks:
+  marked-imports-bench:
+    main: Spec.hs
+    source-dirs: bench
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - marked-imports
+      - criterion

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 module Lib
-    ( run
+    ( run, runWithCtx, mkPkgLookupCtx
     ) where
 
 import qualified System.Process as SP
@@ -32,9 +32,13 @@ instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
             maybe (Left "could not find package") Right $ T.pkgInfo <$> GPKG.lookup db name
 
 run :: T.SourceInfo Text -> IO (Text, Text)
-run (T.SourceInfo name content) = do
-    mpkgCtx <- mkPkgLookupCtx
-    case mpkgCtx of
+run src = do
+    ctx <- mkPkgLookupCtx
+    runWithCtx ctx src
+
+runWithCtx :: PKG.MappingSource s => T.Result (PKG.MappingCtx s) -> T.SourceInfo Text -> IO (Text, Text)
+runWithCtx mPkgCtx (T.SourceInfo name content) = do
+    case mPkgCtx of
         Left err -> pure (mempty, err)
         Right pkgCtx ->
             case MP.parse P.parseFile (unpack name) content of
@@ -46,6 +50,7 @@ run (T.SourceInfo name content) = do
       prettyErrs xs = foldl (\xs x -> xs <> unpackErr x) mempty $ map (second T.unLocated) xs
       unpackErr (txt, name) = listPre <> T.modName name <> ": " <> txt
       listPre = "\n  - "
+
 
 eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
