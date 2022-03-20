@@ -83,7 +83,8 @@ l ><> r = (<>) <$> l <*> r
 
 
 packageExpr :: Parser T.PackageInfo
-packageExpr = label "package expr" $ T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
+packageExpr = label "package expr" $
+    T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
     where
         removeDash v = fromMaybe v $ TxT.stripSuffix "-" v
         versionExpr = text "-" ><> tNum ><> (mconcat <$> MP.many (text "." ><> tNum))
@@ -93,7 +94,8 @@ packageExpr = label "package expr" $ T.PackageInfo <$> (removeDash . Util.mconca
 packageSpec :: Parser T.PackageSpec
 packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
     where
-        name = T.PackageInfo <$> (text "name:" *> hspace *> (T.modName <$> moduleName))
+        namePrefix = text "name:" *> hspace
+        name = T.PackageInfo <$> (namePrefix *> (mconcat <$> (MP.many (MP.try $ word <> text "-"))) <> word)
         exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* modEnd)
         modEnd = MP.optional (char ',') *> space
 

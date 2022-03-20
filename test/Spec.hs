@@ -65,6 +65,8 @@ packageSpecSuite = context "package spec" $ do
         parse P.ghcPkgDump basicInput `shouldBeOk` [expected]
     it "parses multicase correctly" $ do
         parse P.ghcPkgDump (basicInput <> "\n---\n" <> basicInput) `shouldBeOk` [expected, expected]
+    it "handles name-with-dash correctly" $ do
+        parse P.packageSpec "name: example-dash\nexposed-modules: Data.TA" `shouldBeOk` T.PackageSpec (T.PackageInfo "example-dash") [T.ModuleName "Data.TA"]
     where
         expected = T.PackageSpec (T.PackageInfo "testme") [T.ModuleName "Data.TA", T.ModuleName "Data.TB"]
         basicInput = basicInputSep " " -- TODO: QuickCheck this
