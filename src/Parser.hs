@@ -94,7 +94,8 @@ packageSpec :: Parser T.PackageSpec
 packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
     where
         name = T.PackageInfo <$> (text "name:" *> hspace *> (T.modName <$> moduleName))
-        exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* space)
+        exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* modEnd)
+        modEnd = MP.optional (char ',') *> space
 
 ghcPkgDump :: Parser [T.PackageSpec]
 ghcPkgDump = label "ghc-pkg dump" $

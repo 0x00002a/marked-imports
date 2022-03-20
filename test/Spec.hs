@@ -57,13 +57,16 @@ packageSpecSuite = context "package spec" $ do
         parse P.packageSpec "" `shouldSatisfy` isLeft
     it "parses simple case correctly" $ do
         parse P.packageSpec basicInput `shouldBeOk` expected
+    it "parses comma seperated correctly" $ do
+        parse P.packageSpec (basicInputSep ", ") `shouldBeOk` expected
     it "parses single case correctly" $ do
         parse P.ghcPkgDump basicInput `shouldBeOk` [expected]
     it "parses multicase correctly" $ do
         parse P.ghcPkgDump (basicInput <> "\n---\n" <> basicInput) `shouldBeOk` [expected, expected]
     where
         expected = T.PackageSpec (T.PackageInfo "testme") [T.ModuleName "Data.TA", T.ModuleName "Data.TB"]
-        basicInput = "name: testme\nexposed-modules: Data.TA Data.TB" -- TODO: QuickCheck this
+        basicInput = basicInputSep " " -- TODO: QuickCheck this
+        basicInputSep sep = "name: testme\nexposed-modules: Data.TA" <> sep <> "Data.TB"
 
 
 main :: IO ()
