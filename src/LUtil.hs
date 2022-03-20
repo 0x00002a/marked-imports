@@ -17,6 +17,10 @@ mconcatInfix v [] = mempty
 mconcatInfix v [x] = x
 mconcatInfix v (x:xs) = x <> v <> mconcatInfix v xs
 
+mapLeft :: (a -> c) -> Either a b -> Either c b
+mapLeft f (Left v) = Left $ f v
+mapLeft _ (Right v) = Right v
+
 nameOfLocalPackage :: IO (Maybe Text)
 nameOfLocalPackage = Just <$> (SD.getCurrentDirectory >>= findCabalFileRecur)
     where
