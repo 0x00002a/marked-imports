@@ -51,6 +51,12 @@ packageExprSuite = context "package expression" $ do
     it "handles name-with-dash-version properly" $ do
         parse (P.packageExpr) "example-dash-0.1.2" `shouldBeOk` T.PackageInfo "example-dash"
 
+packageSpecSuite = context "package spec" $ do
+    it "parses simple case correctly" $ do
+        parse P.packageSpec "name: testme\nexposed-modules: Data.TA Data.TB" `shouldBeOk` expected
+    where
+        expected = T.PackageSpec (T.PackageInfo "testme") [T.ModuleName "Data.TA", T.ModuleName "Data.TB"]
+
 
 main :: IO ()
 main = hspec $ do
@@ -59,6 +65,7 @@ main = hspec $ do
     describe "module decl" moduleHeaderSuite
     describe "package expr" packageExprSuite
     describe "packages" TestPkgs.spec
+    packageSpecSuite
     TestUtil.spec
 
 

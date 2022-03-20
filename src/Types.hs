@@ -14,6 +14,8 @@ type Result a = Either Text a
 
 data PackageInfo = PackageInfo { pkgName :: !Text } deriving(Show, Eq, Ord)
 
+data PackageSpec = PackageSpec { pkgInfo :: !PackageInfo, pkgExposes :: ![ModuleName] } deriving(Show, Eq, Ord)
+
 data ModuleName = ModuleName { modName :: !Text } deriving(Show, Eq, Ord)
 data Module = Module { modImports :: [Located ModuleName], modComments :: [Located Comment] } deriving (Eq, Show)
 data Comment = SingleLineCmt Text | MultiLineCmt Text Int deriving(Eq, Show, Ord)

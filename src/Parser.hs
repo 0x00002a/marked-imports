@@ -90,6 +90,11 @@ packageExpr = T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepB
         tNum = TxT.singleton <$> MP.numberChar
 
 
+packageSpec :: Parser T.PackageSpec
+packageSpec = T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
+    where
+        name = T.PackageInfo <$> (text "name:" *> hspace *> word)
+        exposes = text "exposed-modules:" *> space *> MP.sepBy moduleName space
 
 
 
