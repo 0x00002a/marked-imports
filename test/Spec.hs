@@ -70,6 +70,9 @@ packageSpecSuite = context "package spec" $ do
         basicInput = basicInputSep " " -- TODO: QuickCheck this
         basicInputSep sep = "name: testme\nexposed-modules: Data.TA" <> sep <> "Data.TB"
 
+moduleNameSuite = context "module name" $ do
+    it "parses case with number correctly" $ do
+        parse P.moduleName "X.Y1" `shouldBeOk` T.ModuleName "X.Y1"
 
 main :: IO ()
 main = hspec $ do
@@ -79,6 +82,7 @@ main = hspec $ do
     describe "package expr" packageExprSuite
     describe "packages" TestPkgs.spec
     packageSpecSuite
+    moduleNameSuite
     TestUtil.spec
 
 

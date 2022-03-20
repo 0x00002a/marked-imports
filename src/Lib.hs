@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 module Lib
-    ( run, runWithCtx, mkPkgLookupCtx
+    ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb
     ) where
 
 import qualified System.Process as SP
@@ -55,6 +55,10 @@ runWithCtx mPkgCtx (T.SourceInfo name content) = do
 eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
 
+mkAndPopulateStackDb :: IO (T.Result GPKG.MapStore)
+mkAndPopulateStackDb = GPKG.mkDbAndPopulate proc
+    where
+        proc = GPKG.pkgCmd (\(cmd, args) -> SP.proc "stack" (["exec", "--", cmd] ++ args))
 
 mkPkgLookupCtx :: IO (T.Result (PKG.MappingCtx (PKG.LocalPkgMatcher (GhcPkgDbSource GPKG.MapStore))))
 mkPkgLookupCtx = do
@@ -62,9 +66,8 @@ mkPkgLookupCtx = do
     pure $ PKG.mkCtx . PKG.mkLocalMatcher <$> db
     where
         ctx = do
-            db <- GPKG.mkDbAndPopulate proc
+            db <- mkAndPopulateStackDb
             pure $ GhcPkgDbSource <$> db
-        proc = GPKG.pkgCmd (\(cmd, args) -> SP.proc "stack" (["exec", "--", cmd] ++ args))
 
 packageToComment :: T.PackageInfo -> Text
 packageToComment pkg = "-- " <> T.pkgName pkg

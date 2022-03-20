@@ -28,7 +28,7 @@ instance MP.ShowErrorComponent Text where
 moduleName :: Parser T.ModuleName
 moduleName = label "module name" $ coerce <$> (MP.many (MP.try (moduleSect <> endingChar)) <> ((:[]) <$> moduleSect))
     where
-        moduleSect = (TxT.pack <$> MP.some letterChar)
+        moduleSect = (TxT.pack <$> MP.some (MP.try letterChar <|> MP.digitChar))
         endingChar = text "."
         coerce = T.ModuleName . foldl (<>) ""
 

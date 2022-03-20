@@ -26,6 +26,7 @@ newtype GhcPkgCmd = GhcPkgCmd ([String] -> SP.CreateProcess)
 class Database a where
     insert :: a -> T.PackageSpec -> a
     lookup :: a -> T.ModuleName -> Maybe T.PackageSpec
+    all :: a -> [T.PackageSpec]
 
 
 newtype MapStore = MapStore (M.Map T.ModuleName T.PackageSpec) deriving (Eq)
@@ -39,6 +40,7 @@ instance Monoid MapStore where
 instance Database MapStore where
     insert (MapStore m) spec = MapStore $ foldl (\m n -> M.insert n spec m) m $ T.pkgExposes spec
     lookup (MapStore m) info =  M.lookup info m
+    all (MapStore m) = map snd $ M.toList m
 
 unPkgCmd (GhcPkgCmd v) = v
 pkgCmd :: ((String, [String]) -> SP.CreateProcess) -> GhcPkgCmd

@@ -5,6 +5,11 @@ import Test.Hspec
 import qualified Packages as PKG
 import Data.Text (Text)
 import qualified Types as T
+import qualified Lib as L
+import qualified GhcPkg as GPKG
+import Data.Maybe (fromJust, isJust)
+import Data.List (find)
+
 
 newtype MockTestProvider = MockTestProvider (Text -> T.PackageInfo)
 
@@ -22,6 +27,9 @@ testingCtx pkg =
             (PKG.mkCtx
                 (MockTestProvider (const pkg)))
 
+fromRight (Left _) = undefined
+fromRight (Right v) = v
+
 spec :: Spec
 spec = context "packages context" $ do
     describe "mocked backend" $ do
@@ -38,5 +46,19 @@ spec = context "packages context" $ do
         it "converts marked-imports to local" $ do
             p <- PKG.providerOf (PKG.mkLocalMatcher <$> (testingCtx $ T.PackageInfo "marked-imports")) (T.ModuleName "")
             fst p `shouldBe` Right (T.PackageInfo "local")
+    describe "ghc-pkg db matcher" $ do
+        let mctx = fromRight <$> L.mkAndPopulateStackDb
+        it "has System.Exit" $ do
+            ctx <- mctx
+            let pkg = fromJust $ GPKG.lookup ctx (T.ModuleName "System.Exit")
+            pkg `shouldSatisfy` (\pkg -> (T.pkgName $ T.pkgInfo pkg) == "base")
+        it "has the base package" $ do
+            ctx <- mctx
+            (map (T.pkgName . T.pkgInfo) (GPKG.all ctx)) `shouldContain` ["base"]
+        it "has base containing System.Exit" $ do
+            ctx <- mctx
+            let basePkg = head $ filter ((== "base") . T.pkgName . T.pkgInfo) (GPKG.all ctx)
+            map T.modName (T.pkgExposes basePkg) `shouldContain` ["System.Exit"]
+
 
 
