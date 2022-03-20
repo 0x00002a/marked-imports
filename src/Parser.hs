@@ -93,7 +93,7 @@ packageExpr = label "package expr" $ T.PackageInfo <$> (removeDash . Util.mconca
 packageSpec :: Parser T.PackageSpec
 packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
     where
-        name = T.PackageInfo <$> (text "name:" *> hspace *> word)
+        name = T.PackageInfo <$> (text "name:" *> hspace *> (T.modName <$> moduleName))
         exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* space)
 
 ghcPkgDump :: Parser [T.PackageSpec]

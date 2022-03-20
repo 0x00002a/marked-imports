@@ -22,11 +22,24 @@ import Data.Foldable (foldlM)
 import Control.Arrow (first, second)
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified LUtil as Util
+import qualified GhcPkg as GPKG
+import qualified System.Process as SP
+
+newtype GhcPkgDbSource db = GhcPkgDbSource db
+
+instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
+    providerOfModule (GhcPkgDbSource db) name = pure $
+            maybe (Left "could not find package") Right $ T.pkgInfo <$> GPKG.lookup db name
 
 run :: T.SourceInfo Text -> IO (Text, Text)
-run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) content of
-    Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
-    Right rs -> bimap TxT.unlines unpackErrs <$> modifyContent content rs
+run (T.SourceInfo name content) = do
+    mpkgCtx <- mkPkgLookupCtx
+    case mpkgCtx of
+        Left err -> pure (mempty, err)
+        Right pkgCtx ->
+            case MP.parse P.parseFile (unpack name) content of
+            Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
+            Right rs -> bimap TxT.unlines unpackErrs <$> modifyContent pkgCtx content rs
     where
       unpackErrs [] = ""
       unpackErrs xs = "could not find packages for:" <> listPre <> prettyErrs xs
@@ -38,14 +51,25 @@ eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
 
 
-pkgLookupCtx = PKG.mkDefaultCtx
+mkPkgLookupCtx :: IO (T.Result (PKG.MappingCtx (PKG.LocalPkgMatcher (GhcPkgDbSource GPKG.MapStore))))
+mkPkgLookupCtx = do
+    db <- ctx
+    pure $ PKG.mkCtx . PKG.mkLocalMatcher <$> db
+    where
+        ctx = do
+            db <- GPKG.mkDbAndPopulate proc
+            pure $ GhcPkgDbSource <$> db
+        proc = GPKG.pkgCmd (\(cmd, args) -> SP.proc "stack" (["exec", "--", cmd] ++ args))
 
 packageToComment :: T.PackageInfo -> Text
 packageToComment pkg = "-- " <> T.pkgName pkg
 
 -- Second result is errors
-extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName], [(Text, T.Located T.ModuleName)])
-extractImports mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.modImports mod)
+extractImports ::
+    PKG.MappingSource s => PKG.MappingCtx s
+    -> T.Module
+    -> IO (Map T.PackageInfo [T.Located T.ModuleName], [(Text, T.Located T.ModuleName)])
+extractImports pkgLookupCtx mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.modImports mod)
     where
         doFold ((xs, errs), ctx) name = do
             (minfo, nextCtx) <- PKG.providerOf ctx (T.unLocated name)
@@ -53,10 +77,10 @@ extractImports mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.m
                 Left err -> ((xs, (err, name):errs), nextCtx)
                 Right info -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
 
-modifyContent :: Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
-modifyContent txt mod = extractResult <$>
+modifyContent :: PKG.MappingSource s => PKG.MappingCtx s -> Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
+modifyContent mapCtx txt mod = extractResult <$>
     foldlM (\xs x -> fmap inc (foldLines xs x))
-            (1, ([], []), pkgLookupCtx)
+            (1, ([], []), mapCtx)
             lines
     where
         lines = TxT.lines txt
@@ -75,7 +99,7 @@ modifyContent txt mod = extractResult <$>
         commented = concatMap toCommentGroup . M.toList
         foldLines inp@(lineNb, xs@(result, errs), pkgCtx) line
             | lineNb == fst importsRange = do
-                extracted <- extractImports mod
+                extracted <- extractImports pkgCtx mod
                 pure (lineNb, xs <> first commented extracted, pkgCtx)
             | isJust (importOnLine lineNb) = pure inp
             | otherwise = pure nextV
