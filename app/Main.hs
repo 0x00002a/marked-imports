@@ -13,6 +13,8 @@ import Data.List (find)
 import Data.Maybe (isJust)
 import qualified Data.Text as TxT
 import qualified Data.Text.IO as TxT
+import qualified System.Directory as DIR
+import Control.Exception (catch, IOException)
 
 
 main :: IO ()
@@ -25,7 +27,7 @@ run name = do
 
 readInput :: Text -> IO Text
 readInput "-" = TxT.hGetContents IO.stdin
-readInput name = TxT.readFile (TxT.unpack name)
+readInput name = IO.withFile (TxT.unpack name) IO.ReadMode TxT.hGetContents
 
 
 writeOutput :: IO.Handle -> (Text, Text) -> IO ()
@@ -34,13 +36,17 @@ writeOutput _ (_, errs) = TxT.hPutStr IO.stderr errs
 
 handleArgs args
     | isJust (find (== ARG.FlagInplace) (ARG.appFlags args)) = do
-            file <- inputFile
+            tmpDir <- DIR.getTemporaryDirectory
+            (fp, file) <- IO.openTempFile tmpDir "marked-imports.inplace.tmp"
             rs <- result
             writeOutput file rs
             IO.hClose file
+            catch (DIR.renameFile fp inputName) (copyOtherwise fp)
     | otherwise = do
         rs <- result
         writeOutput IO.stdout rs
     where
         result = run $ ARG.appInput args
-        inputFile = IO.openFile (TxT.unpack $ ARG.appInput args) IO.ReadMode
+        inputName = TxT.unpack $ ARG.appInput args
+        copyOtherwise :: String -> IOException -> IO ()
+        copyOtherwise fp _ = DIR.copyFile fp inputName >> DIR.removeFile fp
