@@ -26,6 +26,7 @@ dependencies:
 - megaparsec == 9.2.0
 - containers
 - directory
+- optparse-applicative
 
 library:
   source-dirs: src
