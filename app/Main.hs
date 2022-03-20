@@ -13,4 +13,5 @@ main = do
     args <- SE.getArgs
     content <- readFile (head args)
     commented <- bimap unpack unpack <$> run (T.SourceInfo (pack (head args)) (pack content))
-    mapM_ (uncurry IO.hPutStrLn) $ bimap (IO.stdout,) (IO.stderr,) commented
+    IO.hPutStrLn IO.stdout $ fst commented
+    IO.hPutStrLn IO.stderr $ snd commented

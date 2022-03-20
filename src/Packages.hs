@@ -73,7 +73,7 @@ cmdName (SP.ShellCommand n) = n
 instance RunnableProcess a => RunnableProcess (StackEnv a) where
     process (StackEnv comp) n = extractComp (SP.cmdspec $ process comp n)
         where
-            extractComp (SP.RawCommand cmd args) = SP.proc "stack" $ ["--", cmd] ++ args
+            extractComp (SP.RawCommand cmd args) = SP.proc "stack" $ ["exec", "--", cmd] ++ args
             extractComp (SP.ShellCommand cmd) = SP.shell $ "stack -- " <> cmd
     pname (StackEnv comp) = "stack/" <> pname comp
 
