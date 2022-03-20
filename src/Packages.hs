@@ -106,7 +106,7 @@ packageInfoFromGHC :: RunnableProcess a => a -> T.ModuleName -> IO (T.Result T.P
 packageInfoFromGHC ctx name = checkResult <$> runGhcPkg
     where
         checkResult (ExitSuccess, out, _) = parsePackageInfo $ TxT.pack out
-        checkResult (_, _, err) = Left $ "error while running " <> pname ctx <> ": " <> TxT.pack err
+        checkResult (_, out, err) = Left $ "error while running " <> pname ctx <> ": " <> TxT.pack out <> TxT.pack err
         runGhcPkg :: IO (ExitCode, String, String)
         runGhcPkg =
             SP.readCreateProcessWithExitCode

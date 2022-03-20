@@ -19,7 +19,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Monad (foldM)
 import Data.Foldable (foldlM)
-import Control.Arrow (first)
+import Control.Arrow (first, second)
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified LUtil as Util
 
@@ -28,9 +28,11 @@ run (T.SourceInfo name content) = case MP.parse P.parseFile (unpack name) conten
     Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
     Right rs -> bimap TxT.unlines unpackErrs <$> modifyContent content rs
     where
-      unpackErrs :: [T.Located T.ModuleName] -> Text
       unpackErrs [] = ""
-      unpackErrs xs = "could not find packages for: \n-  " <> Util.mconcatInfix "\n-  " (map (T.modName . T.unLocated) xs)
+      unpackErrs xs = "could not find packages for:" <> listPre <> prettyErrs xs
+      prettyErrs xs = foldl (\xs x -> xs <> unpackErr x) mempty $ map (second T.unLocated) xs
+      unpackErr (txt, name) = listPre <> T.modName name <> ": " <> txt
+      listPre = "\n  - "
 
 eqByLine :: T.Pos -> T.Located a -> Bool
 eqByLine rx (T.Located lx _) = lx == rx
@@ -42,23 +44,16 @@ packageToComment :: T.PackageInfo -> Text
 packageToComment pkg = "-- " <> T.pkgName pkg
 
 -- Second result is errors
-extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName], [T.Located T.ModuleName])
+extractImports :: T.Module -> IO (Map T.PackageInfo [T.Located T.ModuleName], [(Text, T.Located T.ModuleName)])
 extractImports mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.modImports mod)
     where
         doFold ((xs, errs), ctx) name = do
-            minfo <- addComment (T.unLocated name) ctx
+            (minfo, nextCtx) <- PKG.providerOf ctx (T.unLocated name)
             pure $ case minfo of
-                Nothing -> ((xs, name:errs), ctx)
-                Just (info, nextCtx) -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
+                Left err -> ((xs, (err, name):errs), nextCtx)
+                Right info -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
 
-addComment :: PKG.MappingSource s => T.ModuleName -> PKG.MappingCtx s -> IO (Maybe (T.PackageInfo, PKG.MappingCtx s))
-addComment name ctx = applyCmt <$> wantedPkg name
-    where
-        wantedPkg n = PKG.providerOf ctx n
-        applyCmt (Left _, _) = Nothing -- TODO: Report this error?
-        applyCmt (Right rs, ctx) = Just (rs, ctx)
-
-modifyContent :: Text -> T.Module -> IO ([Text], [T.Located T.ModuleName])
+modifyContent :: Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
 modifyContent txt mod = extractResult <$>
     foldlM (\xs x -> fmap inc (foldLines xs x))
             (1, ([], []), pkgLookupCtx)
