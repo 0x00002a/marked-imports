@@ -5,6 +5,7 @@ import qualified Text.Megaparsec as MP
 import qualified Types as T
 import qualified TestPackages as TestPkgs
 import qualified TestLUtil as TestUtil
+import qualified TestLib as TestLib
 import Util (toPretty)
 import Data.Either (isLeft)
 
@@ -86,6 +87,7 @@ main = hspec $ do
     packageSpecSuite
     moduleNameSuite
     TestUtil.spec
+    TestLib.spec
 
 
 

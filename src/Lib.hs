@@ -24,6 +24,7 @@ import Data.Bifunctor (Bifunctor(bimap))
 import qualified LUtil as Util
 import qualified GhcPkg as GPKG
 import qualified System.Process as SP
+import qualified Data.Set as Set
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
@@ -69,8 +70,10 @@ mkPkgLookupCtx = do
             db <- mkAndPopulateStackDb
             pure $ GhcPkgDbSource <$> db
 
+packageCommentPrefix = "-- "
+
 packageToComment :: T.PackageInfo -> Text
-packageToComment pkg = "-- " <> T.pkgName pkg
+packageToComment pkg = packageCommentPrefix <> T.pkgName pkg
 
 -- Second result is errors
 extractImports ::
@@ -86,33 +89,35 @@ extractImports pkgLookupCtx mod = fst <$> foldlM doFold ((mempty, mempty), pkgLo
                 Right info -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
 
 modifyContent :: PKG.MappingSource s => PKG.MappingCtx s -> Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
-modifyContent mapCtx txt mod = extractResult <$>
-    foldlM (\xs x -> fmap inc (foldLines xs x))
-            (1, ([], []), mapCtx)
+modifyContent mapCtx txt mod = do
+    imports <- extractImports mapCtx mod
+    let linesOut = foldl (\xs x -> first (+1) (foldLines (fst imports) xs x))
+            (1, mempty)
             lines
+    pure (snd linesOut, snd imports)
     where
         lines = TxT.lines txt
         txtForImport imp = lines !! ((T.srcLine $ T.posOf imp) - 1)
-        inc (line, x, y) = (line + 1, x, y)
-        extractResult (_, r, _) = r
-        --sortedMod = mod { T.modImports = sort (T.modImports mod), T.modComments = sort (T.modComments mod) }
-        --importOnLine :: Maybe (T.Located T.ModuleName)
-        importOnLine line = find (eqByLine (T.Pos line)) (T.modImports mod)
-        commentOnLine line = find (eqByLine (T.Pos line)) (T.modComments mod)
+        importOnLine line = isJust $ find (==line) linesForComment
+        commentOnLine line = isJust $ find (==line) $ map (T.srcLine . T.posOf) (T.modComments mod)
+        linesForComment = filter (not . commentOnLine . (\x -> x - 1)) importLines
         importLines = map (T.srcLine . T.posOf) $ T.modImports mod
-        importsRange = (minimum importLines, maximum importLines)
-
-        --foldLines :: (Int, [Text], GhcPkgMapping) -> Text -> IO (Int, [Text], GhcPkgMapping)
+        importsRange = case importLines of
+            [] -> Nothing
+            lines -> Just (minimum lines, maximum lines)
         toCommentGroup (pkg, imports) = packageToComment pkg:map txtForImport imports
+        commented :: Map T.PackageInfo [T.Located T.ModuleName] -> [Text]
         commented = concatMap toCommentGroup . M.toList
-        foldLines inp@(lineNb, xs@(result, errs), pkgCtx) line
-            | lineNb == fst importsRange = do
-                extracted <- extractImports pkgCtx mod
-                pure (lineNb, xs <> first commented extracted, pkgCtx)
-            | isJust (importOnLine lineNb) = pure inp
-            | otherwise = pure nextV
+        foldLines :: Map T.PackageInfo [T.Located T.ModuleName] -> (Int, [Text]) -> Text -> (Int, [Text])
+        foldLines imports inp@(lineNb, result) line
+            | maybe False ((lineNb ==) . fst) importsRange = do
+                (lineNb, result <> commented imports)
+            | importOnLine lineNb || (commentOnLine lineNb && notPassthroughComment line) = inp
+            | otherwise = nextV
             where
-                nextV = (lineNb, first (++ [line]) xs, pkgCtx)
+                nextV = (lineNb, result <> [line])
+                allPackages = Set.map packageToComment $ M.keysSet imports
+                notPassthroughComment line = Set.member line allPackages
 
 
 

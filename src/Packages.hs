@@ -17,6 +17,7 @@ import qualified System.Directory as SD
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import qualified LUtil as Util
+import qualified Data.Set as Set
 
 mkDefaultCtx :: MappingCtx (LocalPkgMatcher (StackEnv GHCPkgSource))
 mkDefaultCtx = mkLocalMatcher <$> mkStackCtx mkGhcPkgCtx
@@ -99,7 +100,6 @@ providerOf :: MappingSource s => MappingCtx s -> T.ModuleName -> IO (T.Result T.
 providerOf ctx name = case M.lookup name (mCtxCache ctx) of
     Nothing -> (,ctx) <$> providerOfModule (mCtxLookup ctx) name
     Just info -> pure (Right info, ctx)
-
 
 
 packageInfoFromGHC :: RunnableProcess a => a -> T.ModuleName -> IO (T.Result T.PackageInfo)
