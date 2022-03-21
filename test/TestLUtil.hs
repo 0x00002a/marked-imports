@@ -16,6 +16,9 @@ spec = describe "test util" $ do
         it "should be marked-imports" $ do
             n <- LU.nameOfLocalPackage
             n `shouldBe` (Just "marked-imports")
+        it "fails if cannot find cabal before root" $ do
+            n <- LU.nameOfLocalPackage' (pure . const [])
+            n `shouldBe` Nothing
 
 
 

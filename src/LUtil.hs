@@ -6,8 +6,9 @@ import qualified Data.Text as TxT
 import Data.Text (Text)
 import Data.List (find)
 import Data.Maybe (fromJust)
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), join)
 import qualified Types as T
+import System.FilePath as FP
 
 
 result :: Text -> Maybe a -> T.Result a
@@ -23,17 +24,21 @@ mapLeft f (Left v) = Left $ f v
 mapLeft _ (Right v) = Right v
 
 nameOfLocalPackage :: IO (Maybe Text)
-nameOfLocalPackage = Just <$> (SD.getCurrentDirectory >>= findCabalFileRecur)
+nameOfLocalPackage = nameOfLocalPackage' SD.listDirectory
+
+nameOfLocalPackage' :: (FilePath -> IO [FilePath]) -> IO (Maybe Text)
+nameOfLocalPackage' ls = SD.getCurrentDirectory >>= findCabalFileRecur
     where
-        findCabalFileRecur :: String -> IO Text
+        findCabalFileRecur :: String -> IO (Maybe Text)
         findCabalFileRecur dir = findCabalFile dir >>= (\case
-            Nothing -> findCabalFileRecur (dir <> "../")
-            Just f -> pure f)
-        --findCabalFile :: String -> IO (Maybe Text)
+            Nothing -> join <$> sequence (findCabalFileRecur <$> nextLevel dir)
+            Just f -> pure $ pure f)
+        nextLevel dir | FP.takeDirectory dir == dir = Nothing
+                      | otherwise = Just $ FP.takeDirectory dir
         ext :: Text
         ext = ".cabal"
         findCabalFile =
-            fmap (TxT.stripSuffix ext <=< find (TxT.isSuffixOf ext) . map TxT.pack) . SD.listDirectory
+            fmap (TxT.stripSuffix ext <=< find (TxT.isSuffixOf ext) . map TxT.pack) . ls
 
 
 (><>) :: (Applicative m, Semigroup a) => m a -> m a -> m a
