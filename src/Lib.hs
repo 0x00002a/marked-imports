@@ -36,7 +36,7 @@ run src = do
     ctx <- mkPkgLookupCtx
     runWithCtx ctx src
 
-runWithCtx :: PKG.MappingSource s => T.Result (PKG.MappingCtx s) -> T.SourceInfo Text -> IO (Text, Text)
+runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
 runWithCtx mPkgCtx (T.SourceInfo name content) = do
     case mPkgCtx of
         Left err -> pure (mempty, err)
@@ -60,10 +60,10 @@ mkAndPopulateStackDb = GPKG.mkDbAndPopulate proc
     where
         proc = GPKG.pkgCmd (\(cmd, args) -> SP.proc "stack" (["exec", "--", cmd] ++ args))
 
-mkPkgLookupCtx :: IO (T.Result (PKG.MappingCtx (PKG.LocalPkgMatcher (GhcPkgDbSource GPKG.MapStore))))
+mkPkgLookupCtx :: IO (T.Result (PKG.LocalPkgMatcher (GhcPkgDbSource GPKG.MapStore)))
 mkPkgLookupCtx = do
     db <- ctx
-    pure $ PKG.mkCtx . PKG.mkLocalMatcher <$> db
+    pure $ PKG.mkLocalMatcher <$> db
     where
         ctx = do
             db <- mkAndPopulateStackDb
@@ -76,18 +76,18 @@ packageToComment pkg = packageCommentPrefix <> T.pkgName pkg
 
 -- Second result is errors
 extractImports ::
-    PKG.MappingSource s => PKG.MappingCtx s
+    PKG.MappingSource s => s
     -> T.Module
     -> IO (Map T.PackageInfo [T.Located T.ModuleName], [(Text, T.Located T.ModuleName)])
-extractImports pkgLookupCtx mod = fst <$> foldlM doFold ((mempty, mempty), pkgLookupCtx) (T.modImports mod)
+extractImports ctx mod = foldlM doFold (mempty, mempty) (T.modImports mod)
     where
-        doFold ((xs, errs), ctx) name = do
-            (minfo, nextCtx) <- PKG.providerOf ctx (T.unLocated name)
+        doFold (xs, errs) name = do
+            minfo <- PKG.providerOfModule ctx (T.unLocated name)
             pure $ case minfo of
-                Left err -> ((xs, (err, name):errs), nextCtx)
-                Right info -> ((M.insert info (name:M.findWithDefault [] info xs) xs, errs), nextCtx)
+                Left err -> (xs, (err, name):errs)
+                Right info -> (M.insert info (name:M.findWithDefault [] info xs) xs, errs)
 
-modifyContent :: PKG.MappingSource s => PKG.MappingCtx s -> Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
+modifyContent :: PKG.MappingSource s => s -> Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
 modifyContent mapCtx txt mod = do
     imports <- extractImports mapCtx mod
     let linesOut = foldl (\xs x -> first (+1) (foldLines (fst imports) xs x))

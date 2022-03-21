@@ -14,11 +14,8 @@ newtype ConstSource = ConstSource Text
 instance PKG.MappingSource ConstSource where
     providerOfModule (ConstSource s) _ = pure $ pure (T.PackageInfo s)
 
-mkDummyCtx :: IO (T.Result (PKG.MappingCtx ConstSource))
-mkDummyCtx = pure $ pure $ PKG.mkCtx (ConstSource "test")
-
-mkGhcPkgCtx :: IO (T.Result (PKG.MappingCtx (PKG.LocalPkgMatcher (PKG.StackEnv PKG.GHCPkgSource))))
-mkGhcPkgCtx = pure $ pure PKG.mkDefaultCtx
+mkDummyCtx :: IO (T.Result ConstSource)
+mkDummyCtx = pure $ pure $ ConstSource "test"
 
 specInput :: T.SourceInfo Text
 specInput = T.SourceInfo "bench" $ "module MyModule where\n" <> (Util.mconcatInfix "\n" $ map ("import " <>) ["Data.Text", "Data.Maybe", "Control.Applicative", "Control.Monad", "Data.Either", "Text.Megaparsec"])
@@ -32,7 +29,6 @@ spec = [
     bench "constant context" $ toBenchmarkable (runN (void $ mkDummyCtx >>= (flip L.runWithCtx specInput)))
    ,bench "database" $ toBenchmarkable (runN (void $ L.mkPkgLookupCtx >>= (flip L.runWithCtx specInput)))
    ,bench "parsing of dump" $ toBenchmarkable (runN (void $ L.mkPkgLookupCtx))
-   ,bench "individual calls" $ toBenchmarkable (runN (void $ mkGhcPkgCtx >>= (flip L.runWithCtx specInput)))
     ]
 main = defaultMain spec
 
