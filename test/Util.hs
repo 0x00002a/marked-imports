@@ -1,9 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Util (toPretty) where
+module Util (toPretty, mkDummyCtx) where
 import qualified Text.Megaparsec as MP
+import Data.Text (Text)
+import qualified Packages as PKG
+import qualified GhcPkg as GPKG
+import qualified Types as T
 
+newtype ConstSource = ConstSource Text
+instance PKG.MappingSource ConstSource where
+    providerOfModule (ConstSource s) _ = pure $ pure (T.PackageInfo s)
+
+mkDummyCtx :: Text -> T.Result (PKG.MappingCtx ConstSource)
+mkDummyCtx txt = pure $ PKG.mkCtx (ConstSource txt)
 
 newtype PrettyError s e = PrettyError (MP.ParseErrorBundle s e)
 

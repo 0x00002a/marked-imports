@@ -15,6 +15,7 @@ import qualified Types as T
 import Control.Monad (void, (>=>))
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified LUtil as Util
+import LUtil ((><>))
 
 type Parser a = MP.Parsec Text Text a
 
@@ -77,9 +78,6 @@ moduleDecl = label "module declaration" $ moduleStart *> parseContent
 
 word :: Parser Text
 word = label "word" $ TxT.pack <$> MP.many MP.letterChar
-
-(><>) :: (Applicative m, Semigroup a) => m a -> m a -> m a
-l ><> r = (<>) <$> l <*> r
 
 
 packageExpr :: Parser T.PackageInfo

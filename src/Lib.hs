@@ -23,7 +23,6 @@ import Control.Arrow (first, second)
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified LUtil as Util
 import qualified GhcPkg as GPKG
-import qualified System.Process as SP
 import qualified Data.Set as Set
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db

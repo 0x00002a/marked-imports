@@ -53,6 +53,7 @@ tests:
     dependencies:
     - marked-imports
     - hspec
+    - QuickCheck
 benchmarks:
   marked-imports-bench:
     main: Spec.hs

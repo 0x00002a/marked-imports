@@ -9,6 +9,7 @@ import Data.Maybe (fromJust)
 import Control.Monad ((<=<))
 import qualified Types as T
 
+
 result :: Text -> Maybe a -> T.Result a
 result v = maybe (T.err v) T.ok
 
@@ -33,3 +34,7 @@ nameOfLocalPackage = Just <$> (SD.getCurrentDirectory >>= findCabalFileRecur)
         ext = ".cabal"
         findCabalFile =
             fmap (TxT.stripSuffix ext <=< find (TxT.isSuffixOf ext) . map TxT.pack) . SD.listDirectory
+
+
+(><>) :: (Applicative m, Semigroup a) => m a -> m a -> m a
+l ><> r = (<>) <$> l <*> r
