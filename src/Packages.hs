@@ -18,7 +18,6 @@ import Data.List (find)
 import Data.Maybe (fromMaybe)
 import qualified LUtil as Util
 import qualified Data.Set as Set
-import qualified Process as PR
 import Control.Monad.Reader (Reader, runReader)
 
 mkLocalMatcher :: MappingSource s => s -> LocalPkgMatcher s

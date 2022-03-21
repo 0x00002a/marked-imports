@@ -13,8 +13,8 @@ newtype ConstSource = ConstSource Text
 instance PKG.MappingSource ConstSource where
     providerOfModule (ConstSource s) _ = pure $ pure (T.PackageInfo s)
 
-mkDummyCtx :: Text -> T.Result (PKG.MappingCtx ConstSource)
-mkDummyCtx txt = pure $ PKG.mkCtx (ConstSource txt)
+mkDummyCtx :: Text -> T.Result ConstSource
+mkDummyCtx txt = pure $ ConstSource txt
 
 newtype PrettyError s e = PrettyError (MP.ParseErrorBundle s e)
 
