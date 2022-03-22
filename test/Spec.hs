@@ -1,15 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
-import           Control.Monad   (join)
-import           Data.Either     (fromRight, isLeft)
-import           Data.Foldable   (asum)
-import qualified Parser          as P
+{-# LANGUAGE QuasiQuotes       #-}
+import           Control.Monad     (join)
+import           Data.Either       (fromRight, isLeft)
+import           Data.Foldable     (asum)
+import qualified Parser            as P
 import           Test.Hspec
-import qualified TestLUtil       as TestUtil
-import qualified TestLib         as TestLib
-import qualified TestPackages    as TestPkgs
-import qualified Text.Megaparsec as MP
-import qualified Types           as T
-import           Util            (toPretty)
+import qualified TestLUtil         as TestUtil
+import qualified TestLib           as TestLib
+import qualified TestPackages      as TestPkgs
+import qualified Text.Megaparsec   as MP
+import           Text.RawString.QQ
+import qualified Types             as T
+import           Util              (toPretty)
 
 parse f = toPretty . MP.parse f ""
 
@@ -55,6 +57,23 @@ moduleHeaderSuite = context "module header suite" $ do
         let expectedMutliline = fromRight undefined $ snd $ base ""
         let check xs = all ((== expectedMutliline) . T.unLocated) xs
         mapM_ ((`shouldSatisfy` check) . T.modImports . fromRight undefined) results
+    it "parses multiline import with multilined import lists" $ do
+        let txt = [r|module X.Y where
+
+import           X.Z
+    ( thing1
+    , thing2
+    )
+import           Control.Lens
+    ( Getting
+    , Prism'
+    , preview
+    )
+import           Control.Lens.Combinators                          (review)
+        |]
+        let expected = reverse $ map T.ModuleName ["X.Z", "Control.Lens", "Control.Lens.Combinators"]
+        let result = map T.unLocated . T.modImports <$> parse P.moduleDecl txt
+        result `shouldBeOk` expected
     where
         expectedImport n = T.Module [(T.Located (T.Pos n) (T.ModuleName "Y"))]
 

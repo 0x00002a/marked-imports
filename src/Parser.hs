@@ -3,19 +3,19 @@
 module Parser where
 
 
-import qualified Text.Megaparsec as MP
+import           Text.Megaparsec       (label, (<?>), (<|>))
+import qualified Text.Megaparsec       as MP
+import           Text.Megaparsec.Char  (char, hspace, letterChar, space, string)
+import qualified Text.Megaparsec.Char  as MP
 import qualified Text.Megaparsec.Debug as MP
-import Text.Megaparsec ((<|>), label, (<?>))
-import Text.Megaparsec.Char (string, space, hspace, char, letterChar)
-import qualified Text.Megaparsec.Char as MP
 
-import qualified Data.Text as TxT
-import Data.Text (Text)
-import qualified Types as T
-import Control.Monad (void, (>=>))
-import Data.Maybe (catMaybes, fromMaybe)
-import qualified LUtil as Util
-import LUtil ((><>))
+import           Control.Monad         (void, (>=>))
+import           Data.Maybe            (catMaybes, fromMaybe)
+import           Data.Text             (Text)
+import qualified Data.Text             as TxT
+import           LUtil                 ((><>))
+import qualified LUtil                 as Util
+import qualified Types                 as T
 
 type Parser a = MP.Parsec Text Text a
 
@@ -67,10 +67,9 @@ moduleDecl :: Parser T.Module
 moduleDecl = label "module declaration" $ moduleStart *> parseContent
     where
         moduleStart = "module" *> hspace *> moduleName *> consumeLine_
-        parseContent = foldl unpackLines mempty <$> do
-            s <- MP.skipManyTill consumeLine_ (located parseLine)
-            (s:) <$> MP.many (located parseLine)
-
+        parseContent = foldl unpackLines mempty . catMaybes <$> MP.manyTill parseContentLine MP.eof
+        parseContentLine = Just <$> MP.try (located parseLine) <|> Nothing <$ consumeLine_
+        fixOrder mod = mod { T.modComments = reverse (T.modComments mod), T.modImports = reverse (T.modImports mod) }
         unpackLines mod (T.Located src v) = intoModule src v mod
         intoModule src (T.LineCmt cmt) mod = mod { T.modComments = (T.Located src cmt):T.modComments mod }
         intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }

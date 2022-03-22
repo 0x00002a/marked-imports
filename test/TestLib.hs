@@ -25,39 +25,6 @@ exampleCommentedInput = "module T where\n-- text\nimport Data.Text\n"
 testSrc = T.SourceInfo ""
 shouldOutputOk rs out = rs `shouldBe` (out, mempty)
 
-testInputs :: [(Text, Text)]
-testInputs = [([r|"
-module X.Y where
-
-import           X.Z
-    ( thing1
-    , thing2
-    )
-import           Control.Lens
-    ( Getting
-    , Prism'
-    , preview
-    )
-import           Control.Lens.Combinators                          (review)
-"|],
-    [r|"
-module M where
--- local
-import           X.Z
-    ( thing1
-    , thing2
-    )
--- lens
-import           Control.Lens
-    ( Getting
-    , Prism'
-    , preview
-    )
-import           Control.Lens.Combinators                          (review)
-
-    |])
-    ]
-
 data WithFallbackSource s f = WithFallbackSource s f
 instance (PKG.MappingSource f, PKG.MappingSource s) => PKG.MappingSource (WithFallbackSource s f) where
     providerOfModule (WithFallbackSource main fallback) pkg = do
@@ -92,8 +59,3 @@ spec = context "lib tests" $ do
         rs' <- runner (fst rs)
         rs'' <- runner (fst rs')
         rs'' `shouldOutputOk` doc
-    it "satisfies the test inputs" $ do
-        ctx <- testCtxFb (fromRight undefined $ TUtil.mkDummyCtx "local")
-        results <- mapM (\(f, s) -> (,s) . fst <$> L.runWithCtx ctx (testSrc f)) testInputs
-        mapM_ (uncurry shouldBe) results
-
