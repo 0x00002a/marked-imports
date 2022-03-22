@@ -1,29 +1,28 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb
     ) where
 
-import qualified System.Process as SP
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as TxT
-import Data.Foldable (toList)
-import System.Exit (ExitCode(..))
-import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
+import           Control.Arrow   (first, second)
+import           Control.Monad   (foldM)
+import           Data.Bifunctor  (Bifunctor (bimap))
+import           Data.Foldable   (foldlM, toList)
+import           Data.List       (find)
+import           Data.Map        (Map)
+import qualified Data.Map        as M
+import           Data.Maybe      (catMaybes, fromJust, fromMaybe, isJust)
+import qualified Data.Set        as Set
+import           Data.Text       (Text, pack, unpack)
+import qualified Data.Text       as TxT
+import qualified GhcPkg          as GPKG
+import qualified LUtil           as Util
+import qualified Packages        as PKG
+import qualified Parser          as P
+import           System.Exit     (ExitCode (..))
+import qualified System.Process  as SP
 import qualified Text.Megaparsec as MP
-import qualified Parser as P
-import qualified Types as T
-import qualified Packages as PKG
-import Data.List (find)
-import Data.Map (Map)
-import qualified Data.Map as M
-import Control.Monad (foldM)
-import Data.Foldable (foldlM)
-import Control.Arrow (first, second)
-import Data.Bifunctor (Bifunctor(bimap))
-import qualified LUtil as Util
-import qualified GhcPkg as GPKG
-import qualified Data.Set as Set
+import qualified Types           as T
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
@@ -36,6 +35,13 @@ run src = do
     ctx <- mkPkgLookupCtx
     runWithCtx ctx src
 
+linesPreserve ""  = []
+linesPreserve txt = TxT.split (=='\n') txt
+
+unlinesPreserve []     = ""
+unlinesPreserve [x]    = x
+unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
+
 runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
 runWithCtx mPkgCtx (T.SourceInfo name content) = do
     case mPkgCtx of
@@ -43,8 +49,13 @@ runWithCtx mPkgCtx (T.SourceInfo name content) = do
         Right pkgCtx ->
             case MP.parse P.parseFile (unpack name) content of
             Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
-            Right rs -> bimap TxT.unlines unpackErrs <$> modifyContent pkgCtx content rs
+            Right rs -> bimap unlinesPreserve unpackErrs <$> modifyContent pkgCtx content rs
     where
+      unlinesNoTrailing _ [] = ""
+      unlinesNoTrailing _ [x] = x
+      unlinesNoTrailing orig lines
+            | TxT.last orig /= '\n' = TxT.dropEnd 1 (TxT.unlines (tail lines)) <> last lines
+            | otherwise = TxT.unlines lines
       unpackErrs [] = ""
       unpackErrs xs = "could not find packages for:" <> listPre <> prettyErrs xs
       prettyErrs xs = foldl (\xs x -> xs <> unpackErr x) mempty $ map (second T.unLocated) xs
@@ -95,14 +106,14 @@ modifyContent mapCtx txt mod = do
             lines
     pure (snd linesOut, snd imports)
     where
-        lines = TxT.lines txt
+        lines = linesPreserve txt
         txtForImport imp = lines !! ((T.srcLine $ T.posOf imp) - 1)
         importOnLine line = isJust $ find (==line) linesForComment
         commentOnLine line = isJust $ find (==line) $ map (T.srcLine . T.posOf) (T.modComments mod)
         linesForComment = filter (not . commentOnLine . (\x -> x - 1)) importLines
         importLines = map (T.srcLine . T.posOf) $ T.modImports mod
         importsRange = case importLines of
-            [] -> Nothing
+            []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
         toCommentGroup (pkg, imports) = packageToComment pkg:map txtForImport imports
         commented :: Map T.PackageInfo [T.Located T.ModuleName] -> [Text]
