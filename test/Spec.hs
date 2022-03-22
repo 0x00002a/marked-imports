@@ -1,13 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Test.Hspec
-import qualified Parser as P
+import           Control.Monad   (join)
+import           Data.Either     (fromRight, isLeft)
+import           Data.Foldable   (asum)
+import qualified Parser          as P
+import           Test.Hspec
+import qualified TestLUtil       as TestUtil
+import qualified TestLib         as TestLib
+import qualified TestPackages    as TestPkgs
 import qualified Text.Megaparsec as MP
-import qualified Types as T
-import qualified TestPackages as TestPkgs
-import qualified TestLUtil as TestUtil
-import qualified TestLib as TestLib
-import Util (toPretty)
-import Data.Either (isLeft)
+import qualified Types           as T
+import           Util            (toPretty)
 
 parse f = toPretty . MP.parse f ""
 
@@ -16,10 +18,11 @@ moduleTxt qualifiers name = ("import " <> qualifiers <> " " <> name, Right $ T.M
 
 shouldBeOk parser check = parser `shouldBe` Right check
 
+someplace = T.Located (T.Pos undefined)
+
 importDeclSuite = context "import decl suite" $ do
             it "can parse an unqualified line" $ do
                 parse P.importDecl (txt "") `shouldBe` expected
-
             it "can parse a qualified import" $ do
                 parse P.importDecl (txt "qualified") `shouldBe` expected
             it "fails to parse an empty" $ do
@@ -44,6 +47,14 @@ moduleHeaderSuite = context "module header suite" $ do
         parse P.parseFile "{-# LANGUAGE test me #-}\nmodule X\nimport Y" `shouldBeOk` expectedImport 3 []
     it "skips language pargmas" $ do
         parse P.moduleDecl "module X (x,\ny)\nimport Y" `shouldBeOk` expectedImport 3 []
+    it "parses multiline import" $ do
+        let base qual = moduleTxt qual "X.Y"
+        let mutliLineOpts = ["\n(catMaybes\n,something\n)", "(catMaybes,something)", "(catMaybes\n,something)"]
+        let txt = fst . base
+        let results = map (\ls -> parse P.moduleDecl $ "module X.Y\n" <> txt "" <> ls <> "\n" <> ls) mutliLineOpts
+        let expectedMutliline = fromRight undefined $ snd $ base ""
+        let check xs = all ((== expectedMutliline) . T.unLocated) xs
+        mapM_ ((`shouldSatisfy` check) . T.modImports . fromRight undefined) results
     where
         expectedImport n = T.Module [(T.Located (T.Pos n) (T.ModuleName "Y"))]
 

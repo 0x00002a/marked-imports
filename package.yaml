@@ -56,6 +56,7 @@ tests:
     - marked-imports
     - hspec
     - QuickCheck
+    - raw-strings-qq
 benchmarks:
   marked-imports-bench:
     main: Spec.hs
