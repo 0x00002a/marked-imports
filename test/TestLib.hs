@@ -37,7 +37,6 @@ instance (PKG.MappingSource f, PKG.MappingSource s) => PKG.MappingSource (WithFa
                     Right ok -> Right ok
                     Left errfall -> Left ("first: " <> err <> ";second: " <> errfall)
 
---testCtxFb :: (PKG.MappingSource s) => s -> (forall r. PKG.MappingSource r => IO (T.Result r))
 testCtxFb fall = do
     base <- L.mkPkgLookupCtx
     pure $ case base of
@@ -59,3 +58,9 @@ spec = context "lib tests" $ do
         rs' <- runner (fst rs)
         rs'' <- runner (fst rs')
         rs'' `shouldOutputOk` doc
+    it "updates out of date docs" $ do
+        let modules = ["Data.Maybe"]
+        let doc name = "module T where\n-- " <> name <> "\nimport " <> Util.mconcatInfix "\nimport " modules <> "\n"
+        let runner doc = L.runWithCtx (TUtil.mkDummyCtx "text") (testSrc doc)
+        rs <- runner $ doc "text1"
+        rs `shouldOutputOk` doc "text1\n-- text"
