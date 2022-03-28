@@ -80,6 +80,6 @@ spec = context "lib tests" $ do
     it "handles multiline explicit imports" $ do
         let modules = ["S", "Data.Maybe \n(Maybe\n)"]
         let funcCtx "S" = "m1"
-            funcCtx _ = "base"
+            funcCtx _ = "z"
         checkWithImports modules funcCtx
 

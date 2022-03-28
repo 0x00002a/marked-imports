@@ -46,16 +46,18 @@ spaceCare = TxT.pack <$> MP.many (MP.try MP.newline <|> MP.spaceChar)
 
 importDecl :: Parser T.ImportDecl
 importDecl = do
-    start <- text "import" <> spaceCare
+    start <- importStart <> spaceCare
     modTxt <- MP.lookAhead $ fullMod
     MP.optional moduleQualifiers >> space
     name <- moduleName <* space
     pure (name, start <> modTxt)
     where
+        importStart = text "import"
         moduleEnd = MP.choice [MP.try matchEnd, consumeLine ]
         matchEnd = text "(" <> spaceCare <> (mconcat <$> MP.many endInner) <> spaceCare <> text ")"
         endInner = MP.choice [ MP.try $ MP.lookAhead (char '(') *> matchEnd, TxT.singleton <$> MP.anySingleBut ')' ]
-        explicitImport = (TxT.pack <$> MP.someTill (MP.anySingleBut '(') (MP.lookAhead $ char '(')) <> matchEnd
+        explicitImport = (TxT.pack <$> MP.someTill explicitImportCond (MP.lookAhead $ char '(')) <> matchEnd
+        explicitImportCond = MP.optional (MP.lookAhead (MP.eol >> MP.notFollowedBy importStart)) >> MP.anySingleBut '('
         fullMod = MP.try explicitImport <|> consumeLine
 
 
