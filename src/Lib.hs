@@ -27,7 +27,7 @@ import Data.List (sortOn)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
-data ProcessedNode = PRawLine Text | PImportGroup T.PackageInfo [T.ImportDecl]
+data ProcessedNode = PRawLine Text | POldImportCmt Text | PImportGroup T.PackageInfo [T.ImportDecl]
 type ProcessedAST = [ProcessedNode]
 
 instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
@@ -49,10 +49,14 @@ unlinesPreserve s (x:xs) = s x <> "\n" <> unlinesPreserve s xs
 cmtToTxt (T.SingleLineCmt c) = "-- " <> c
 
 unAST :: ProcessedAST -> Text
-unAST = unlinesPreserve unpackAST
+unAST = unlinesPreserve unpackAST . stripOld
     where
         unpackAST (PRawLine l) = l
         unpackAST (PImportGroup pkg imports) = unlinesPreserve id $ cmtToTxt (packageToComment pkg):map snd imports
+        stripOld = filter (\case
+                            POldImportCmt _ -> False
+                            _ -> True
+                            )
 
 runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
 runWithCtx mPkgCtx (T.SourceInfo name content) = do
@@ -128,18 +132,22 @@ modifyContent mapCtx txt mod = do
             []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
         toCommentGroup (pkg, imports) = PImportGroup pkg (map T.unLocated imports)
+        oldComments pkgs = filter (`Set.notMember` pkgCmts pkgs) . Set.toList . pkgCmts . M.keysSet
+            where
+                pkgCmts = Set.map (cmtToTxt . packageToComment)
         commented :: Map T.PackageInfo [T.Located T.ImportDecl] -> ProcessedAST
         commented = map toCommentGroup . M.toList
         foldLines :: Map T.PackageInfo [T.Located T.ImportDecl] -> [ProcessedNode] -> Int -> Text -> [ProcessedNode]
         foldLines imports result lineNb line
             | maybe False ((lineNb ==) . fst) importsRange =
                 result <> commented imports
-            | importOnLine lineNb || (commentOnLine lineNb && notPassthroughComment (T.SingleLineCmt line)) = result
+            | commentOnLine lineNb && notPassthroughComment line = result <> [POldImportCmt line]
+            | importOnLine lineNb = result
             | otherwise = nextV
             where
                 nextV = result <> [PRawLine line]
                 allPackages = Set.map packageToComment $ M.keysSet imports
-                notPassthroughComment line = Set.member line allPackages
+                notPassthroughComment line = Set.member line (Set.map cmtToTxt allPackages)
 
 
 
