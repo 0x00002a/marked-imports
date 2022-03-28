@@ -1,11 +1,13 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module Lib
-    ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb
+    ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
+    unAST, stripPackageComments, runT
     ) where
 
 import           Control.Arrow   (first, second)
-import           Control.Monad   (foldM)
+import           Control.Monad   (foldM, join)
 import           Data.Bifunctor  (Bifunctor (bimap))
 import           Data.Foldable   (foldlM, toList)
 import           Data.List       (find)
@@ -25,20 +27,55 @@ import qualified Text.Megaparsec as MP
 import qualified Types           as T
 import Data.List (sortOn)
 import Debug.Trace (traceShow, traceShowId)
+import Control.Monad.Cont (liftIO)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
-data ProcessedNode = PRawLine Text | POldImportCmt Text | PImportGroup T.PackageInfo [T.ImportDecl] deriving (Show)
+data ProcessedNode = PRawLine (T.Located Text) | POldImportCmt (T.Located Text) | PImportGroup T.PackageInfo [T.Located T.ImportDecl] deriving (Show, Eq)
 type ProcessedAST = [ProcessedNode]
+
+type ProcessErr = (Text, T.Located T.ImportDecl)
 
 instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
     providerOfModule (GhcPkgDbSource db) name = pure $
             maybe (Left "could not find package") Right $ T.pkgInfo <$> GPKG.lookup db name
 
 run :: T.SourceInfo Text -> IO (Text, Text)
-run src = do
+run src = runT src id
+
+runT :: T.SourceInfo Text -> (ProcessedAST -> ProcessedAST) -> IO (Text, Text)
+runT src t = do
     ctx <- mkPkgLookupCtx
-    runWithCtx ctx src
+    runWithCtxT ctx src t
+
+parseToAST :: PKG.MappingSource s => s -> T.SourceInfo Text -> IO (T.Result (ProcessedAST, [ProcessErr]))
+parseToAST pkgCtx (T.SourceInfo name content) = do
+    case MP.parse P.parseFile (unpack name) content of
+        Left err -> pure $ T.err $ (("parse error: " <>) . pack . MP.errorBundlePretty) err
+        Right rs -> T.ok <$> modifyContent pkgCtx content rs
+
+errorPretty :: ProcessErr -> Text
+errorPretty (msg, loc) =
+    (TxT.pack . show . T.srcLine $ T.posOf loc)
+    <> ": "
+    <> snd (T.unLocated loc)
+    <> "\nerror: "
+    <> msg
+
+stripPackageInfo :: ProcessedAST -> ProcessedAST
+stripPackageInfo = sortOn sortFn . concatMap doStrip
+    where
+        sortFn (POldImportCmt line) = T.posOf line
+        sortFn (PRawLine line) = T.posOf line
+        doStrip :: ProcessedNode -> [ProcessedNode]
+        doStrip (PImportGroup info imports) = map (PRawLine . fmap snd) imports
+        doStrip x = [x]
+
+stripPackageComments :: ProcessedAST -> ProcessedAST
+stripPackageComments = stripPackageInfo . filter notOldCmt
+    where
+        notOldCmt (POldImportCmt _) = False
+        notOldCmt _ = True
 
 linesPreserve ""  = []
 linesPreserve txt = TxT.split (=='\n') txt
@@ -48,37 +85,29 @@ unlinesPreserve [x]    = x
 unlinesPreserve (x:"":xs) = x <> "\n" <> unlinesPreserve xs
 unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
 
+cmtToTxt (T.SingleLineCmt "") = ""
 cmtToTxt (T.SingleLineCmt c) = "-- " <> c
 
 unAST :: ProcessedAST -> Text
 unAST = unlinesPreserve . map unpackAST . stripOld
     where
-        unpackAST (PRawLine l) = l
-        unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment pkg):map snd imports
+        unpackAST (PRawLine l) = T.unLocated l
+        unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment pkg):map (snd . T.unLocated) imports
         stripOld = filter (\case
                             POldImportCmt _ -> False
                             _ -> True
                             )
 
-runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
-runWithCtx mPkgCtx (T.SourceInfo name content) = do
-    case mPkgCtx of
-        Left err -> pure (mempty, err)
-        Right pkgCtx ->
-            case MP.parse P.parseFile (unpack name) content of
-            Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
-            Right rs -> bimap unAST (unpackErrs . map (second (fmap fst))) <$> modifyContent pkgCtx content rs
+
+runWithCtxT :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> (ProcessedAST -> ProcessedAST) -> IO (Text, Text)
+runWithCtxT mPkgCtx src t =
+    either (mempty,) ok . join <$> sequence (flip parseToAST src <$> mPkgCtx)
     where
-      unlinesNoTrailing _ [] = ""
-      unlinesNoTrailing _ [x] = x
-      unlinesNoTrailing orig lines
-            | TxT.last orig /= '\n' = TxT.dropEnd 1 (TxT.unlines (tail lines)) <> last lines
-            | otherwise = TxT.unlines lines
-      unpackErrs [] = ""
-      unpackErrs xs = "could not find packages for:" <> listPre <> prettyErrs xs
-      prettyErrs xs = foldl (\xs x -> xs <> unpackErr x) mempty $ map (second T.unLocated) xs
-      unpackErr (txt, name) = listPre <> T.modName name <> ": " <> txt
-      listPre = "\n  - "
+        ok :: (ProcessedAST, [ProcessErr]) -> (Text, Text)
+        ok = bimap (unAST . t) (foldl (<>) mempty . map errorPretty)
+
+runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
+runWithCtx mPkgCtx src = runWithCtxT mPkgCtx src id
 
 
 eqByLine :: T.Pos -> T.Located a -> Bool
@@ -133,7 +162,7 @@ modifyContent mapCtx txt mod = do
         importsRange = case importLines of
             []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
-        toCommentGroup (pkg, imports) = PImportGroup pkg (map T.unLocated imports)
+        toCommentGroup (pkg, imports) = PImportGroup pkg imports
         oldComments pkgs = filter (`Set.notMember` pkgCmts pkgs) . Set.toList . pkgCmts . M.keysSet
             where
                 pkgCmts = Set.map (cmtToTxt . packageToComment)
@@ -144,11 +173,12 @@ modifyContent mapCtx txt mod = do
             | maybe False ((lineNb ==) . fst) importsRange =
                 result <> commented imports
 
-            | commentOnLine lineNb && notPassthroughComment line = result <> [POldImportCmt line]
+            | commentOnLine lineNb && notPassthroughComment line = result <> [POldImportCmt (T.Located pos line)]
             | importOnLine lineNb = result
             | otherwise = nextV
             where
-                nextV = result <> [PRawLine line]
+                pos = T.Pos lineNb
+                nextV = result <> [PRawLine $ T.Located pos line]
                 allPackages = Set.map packageToComment $ M.keysSet imports
                 notPassthroughComment line = Set.member line (Set.map cmtToTxt allPackages)
 
