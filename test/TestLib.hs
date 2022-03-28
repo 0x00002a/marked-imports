@@ -78,7 +78,7 @@ spec = context "lib tests" $ do
         rs <- runner $ doc "text1"
         rs `shouldOutputOk` doc "text1\n-- text"
     it "handles multiline explicit imports" $ do
-        let modules = ["S", "Data.Maybe \n(Maybe\n)", "M2"]
+        let modules = ["S", "Data.Maybe \n(Maybe\n)"]
         let funcCtx "S" = "m1"
             funcCtx _ = "base"
         checkWithImports modules funcCtx

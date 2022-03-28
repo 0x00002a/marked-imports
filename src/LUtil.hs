@@ -28,6 +28,13 @@ mapLeft _ (Right v) = Right v
 nameOfLocalPackage :: IO (Maybe Text)
 nameOfLocalPackage = nameOfLocalPackage' SD.listDirectory
 
+linesCoveredByImport :: T.Located T.ImportDecl -> [Int]
+linesCoveredByImport imp = covered
+    where
+        lines = fmap (TxT.lines . snd) imp
+        startLine = (T.srcLine . T.posOf) lines
+        covered = foldlWithIndex (\xs n _ -> (startLine + n - 1):xs) mempty (T.unLocated lines)
+
 nameOfLocalPackage' :: (FilePath -> IO [FilePath]) -> IO (Maybe Text)
 nameOfLocalPackage' ls = SD.getCurrentDirectory >>= findCabalFileRecur
     where

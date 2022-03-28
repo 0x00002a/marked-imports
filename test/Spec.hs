@@ -16,7 +16,7 @@ import           Util              (toPretty)
 parse f = toPretty . MP.parse f ""
 
 
-moduleTxt qualifiers name = ("import " <> qualifiers <> " " <> name, Right $ T.ModuleName name)
+moduleTxt qualifiers name = ("import " <> qualifiers <> " " <> name, T.ModuleName name)
 
 shouldBeOk parser check = parser `shouldBe` Right check
 
@@ -24,14 +24,19 @@ someplace = T.Located (T.Pos undefined)
 
 importDeclSuite = context "import decl suite" $ do
             it "can parse an unqualified line" $ do
-                (fst <$> parse P.importDecl (txt "")) `shouldBe` expected
+                parse P.importDecl (txt "") `shouldBeOk` expected
             it "can parse a qualified import" $ do
-                (fst <$> parse P.importDecl (txt "qualified")) `shouldBe` expected
+                parse P.importDecl (txt "qualified") `shouldBeOk` expectedQual "qualified"
             it "fails to parse an empty" $ do
                 parse P.importDecl "" `shouldSatisfy` isLeft
+            it "parses multiline with first non-explicit correctly" $ do
+                let txt = "import Z" <> "\n" <> "import H \n(M\n)"
+                let rs = parse (MP.some P.importDecl) txt
+                rs `shouldBeOk` [(T.ModuleName "Z", "import Z"), (T.ModuleName "H", "import H \n(M\n)")]
     where
         base qual = moduleTxt qual "X.Y"
-        expected = snd $ base ""
+        expectedQual q = (snd $ base q, fst $ base q)
+        expected = expectedQual ""
         txt = fst . base
 
 commentDeclSuite = context "comment decl suite" $ do
@@ -54,7 +59,7 @@ moduleHeaderSuite = context "module header suite" $ do
         let mutliLineOpts = ["\n(catMaybes\n,something\n)", "(catMaybes,something)", "(catMaybes\n,something)"]
         let txt = fst . base
         let results = map (\ls -> parse P.moduleDecl $ "module X.Y\n" <> txt "" <> ls <> "\n" <> ls) mutliLineOpts
-        let expectedMutliline = fromRight undefined $ snd $ base ""
+        let expectedMutliline = snd $ base ""
         let check xs = all ((== expectedMutliline) . T.unLocated) xs
         mapM_ ((`shouldSatisfy` check) . map (fmap fst) . T.modImports . fromRight undefined) results
     it "parses multiline import with multilined import lists" $ do

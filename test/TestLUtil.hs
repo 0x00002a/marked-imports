@@ -3,6 +3,7 @@ module TestLUtil where
 
 import Test.Hspec
 import qualified LUtil as LU
+import qualified Types as T
 
 spec = describe "test util" $ do
     describe "mconcatInfix" $ do
@@ -19,6 +20,11 @@ spec = describe "test util" $ do
         it "fails if cannot find cabal before root" $ do
             n <- LU.nameOfLocalPackage' (pure . const [])
             n `shouldBe` Nothing
+    describe "linesCoveredByImport" $ do
+        it "should produce [line] for single line" $ do
+            LU.linesCoveredByImport (T.Located (T.Pos 1) (T.ModuleName "X", "import Y")) `shouldMatchList` [1]
+        it "should produce [line, line + 1] for multi line" $ do
+            LU.linesCoveredByImport (T.Located (T.Pos 1) (T.ModuleName "X", "import Y\n(x\n)")) `shouldMatchList` [1, 2, 3]
 
 
 

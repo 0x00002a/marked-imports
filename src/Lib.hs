@@ -24,10 +24,11 @@ import qualified System.Process  as SP
 import qualified Text.Megaparsec as MP
 import qualified Types           as T
 import Data.List (sortOn)
+import Debug.Trace (traceShow)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
-data ProcessedNode = PRawLine Text | POldImportCmt Text | PImportGroup T.PackageInfo [T.ImportDecl]
+data ProcessedNode = PRawLine Text | POldImportCmt Text | PImportGroup T.PackageInfo [T.ImportDecl] deriving (Show)
 type ProcessedAST = [ProcessedNode]
 
 instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
@@ -124,10 +125,10 @@ modifyContent mapCtx txt mod = do
     where
         lines = linesPreserve txt
         txtForImport imp = lines !! ((T.srcLine $ T.posOf imp) - 1)
-        importOnLine line = isJust $ find (==line) linesForComment
+        importOnLine line = isJust $ find (==line) importLines
         commentOnLine line = isJust $ find (==line) $ map (T.srcLine . T.posOf) (T.modComments mod)
         linesForComment = filter (not . commentOnLine . (\x -> x - 1)) importLines
-        importLines = map (T.srcLine . T.posOf) $ T.modImports mod
+        importLines = concatMap Util.linesCoveredByImport $ T.modImports mod
         importsRange = case importLines of
             []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
@@ -141,6 +142,7 @@ modifyContent mapCtx txt mod = do
         foldLines imports result lineNb line
             | maybe False ((lineNb ==) . fst) importsRange =
                 result <> commented imports
+
             | commentOnLine lineNb && notPassthroughComment line = result <> [POldImportCmt line]
             | importOnLine lineNb = result
             | otherwise = nextV
