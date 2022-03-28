@@ -23,8 +23,12 @@ import           System.Exit     (ExitCode (..))
 import qualified System.Process  as SP
 import qualified Text.Megaparsec as MP
 import qualified Types           as T
+import Data.List (sortOn)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
+
+data ProcessedNode = PRawLine Text | PImportGroup T.PackageInfo [T.ImportDecl]
+type ProcessedAST = [ProcessedNode]
 
 instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
     providerOfModule (GhcPkgDbSource db) name = pure $
@@ -38,9 +42,17 @@ run src = do
 linesPreserve ""  = []
 linesPreserve txt = TxT.split (=='\n') txt
 
-unlinesPreserve []     = ""
-unlinesPreserve [x]    = x
-unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
+unlinesPreserve _ []     = ""
+unlinesPreserve s [x]    = s x
+unlinesPreserve s (x:xs) = s x <> "\n" <> unlinesPreserve s xs
+
+cmtToTxt (T.SingleLineCmt c) = "-- " <> c
+
+unAST :: ProcessedAST -> Text
+unAST = unlinesPreserve unpackAST
+    where
+        unpackAST (PRawLine l) = l
+        unpackAST (PImportGroup pkg imports) = unlinesPreserve id $ cmtToTxt (packageToComment pkg):map snd imports
 
 runWithCtx :: PKG.MappingSource s => T.Result s -> T.SourceInfo Text -> IO (Text, Text)
 runWithCtx mPkgCtx (T.SourceInfo name content) = do
@@ -49,7 +61,7 @@ runWithCtx mPkgCtx (T.SourceInfo name content) = do
         Right pkgCtx ->
             case MP.parse P.parseFile (unpack name) content of
             Left err -> pure (content, (("parse error: " <>) . pack . MP.errorBundlePretty) err)
-            Right rs -> bimap unlinesPreserve unpackErrs <$> modifyContent pkgCtx content rs
+            Right rs -> bimap unAST (unpackErrs . map (second (fmap fst))) <$> modifyContent pkgCtx content rs
     where
       unlinesNoTrailing _ [] = ""
       unlinesNoTrailing _ [x] = x
@@ -82,29 +94,29 @@ mkPkgLookupCtx = do
 
 packageCommentPrefix = "-- "
 
-packageToComment :: T.PackageInfo -> Text
-packageToComment pkg = packageCommentPrefix <> T.pkgName pkg
+packageToComment :: T.PackageInfo -> T.Comment
+packageToComment pkg = T.SingleLineCmt $ T.pkgName pkg
 
 -- Second result is errors
 extractImports ::
     PKG.MappingSource s => s
     -> T.Module
-    -> IO (Map T.PackageInfo [T.Located T.ModuleName], [(Text, T.Located T.ModuleName)])
-extractImports ctx mod = foldlM doFold (mempty, mempty) (T.modImports mod)
+    -> IO (Map T.PackageInfo [T.Located T.ImportDecl], [(Text, T.Located T.ImportDecl)])
+extractImports ctx mod = foldlM  doFold (mempty, mempty) (T.modImports mod)
     where
         doFold (xs, errs) name = do
-            minfo <- PKG.providerOfModule ctx (T.unLocated name)
+            minfo <- PKG.providerOfModule ctx (fst $ T.unLocated name)
             pure $ case minfo of
                 Left err -> (xs, (err, name):errs)
                 Right info -> (M.insert info (name:M.findWithDefault [] info xs) xs, errs)
 
-modifyContent :: PKG.MappingSource s => s -> Text -> T.Module -> IO ([Text], [(Text, T.Located T.ModuleName)])
+modifyContent :: PKG.MappingSource s => s -> Text -> T.Module -> IO (ProcessedAST, [(Text, T.Located T.ImportDecl)])
 modifyContent mapCtx txt mod = do
     imports <- extractImports mapCtx mod
-    let linesOut = foldl (\xs x -> first (+1) (foldLines (fst imports) xs x))
-            (1, mempty)
+    let linesOut = Util.foldlWithIndex (foldLines (fst imports))
+            mempty
             lines
-    pure (snd linesOut, snd imports)
+    pure (linesOut, snd imports)
     where
         lines = linesPreserve txt
         txtForImport imp = lines !! ((T.srcLine $ T.posOf imp) - 1)
@@ -115,17 +127,17 @@ modifyContent mapCtx txt mod = do
         importsRange = case importLines of
             []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
-        toCommentGroup (pkg, imports) = packageToComment pkg:map txtForImport imports
-        commented :: Map T.PackageInfo [T.Located T.ModuleName] -> [Text]
-        commented = concatMap toCommentGroup . M.toList
-        foldLines :: Map T.PackageInfo [T.Located T.ModuleName] -> (Int, [Text]) -> Text -> (Int, [Text])
-        foldLines imports inp@(lineNb, result) line
-            | maybe False ((lineNb ==) . fst) importsRange = do
-                (lineNb, result <> commented imports)
-            | importOnLine lineNb || (commentOnLine lineNb && notPassthroughComment line) = inp
+        toCommentGroup (pkg, imports) = PImportGroup pkg (map T.unLocated imports)
+        commented :: Map T.PackageInfo [T.Located T.ImportDecl] -> ProcessedAST
+        commented = map toCommentGroup . M.toList
+        foldLines :: Map T.PackageInfo [T.Located T.ImportDecl] -> [ProcessedNode] -> Int -> Text -> [ProcessedNode]
+        foldLines imports result lineNb line
+            | maybe False ((lineNb ==) . fst) importsRange =
+                result <> commented imports
+            | importOnLine lineNb || (commentOnLine lineNb && notPassthroughComment (T.SingleLineCmt line)) = result
             | otherwise = nextV
             where
-                nextV = (lineNb, result <> [line])
+                nextV = result <> [PRawLine line]
                 allPackages = Set.map packageToComment $ M.keysSet imports
                 notPassthroughComment line = Set.member line allPackages
 

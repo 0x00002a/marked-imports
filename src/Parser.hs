@@ -41,7 +41,21 @@ consumeLine = TxT.pack <$> MP.manyTill MP.anySingle (void MP.eol <|> MP.eof)
 
 moduleQualifiers = MP.choice [text "qualified"]
 
-importDecl = (text "import" <* space) *> MP.optional moduleQualifiers *> space *> moduleName <* consumeLine_
+spaceCare :: Parser Text
+spaceCare = TxT.pack <$> MP.many (MP.try MP.newline <|> MP.spaceChar)
+
+importDecl = do
+    start <- text "import" <> spaceCare
+    modTxt <- MP.lookAhead $ (TxT.pack <$> (MP.someTill (MP.anySingleBut '(') (MP.lookAhead $ char '('))) <> matchEnd
+    MP.optional moduleQualifiers >> space
+    name <- moduleName <* space
+    pure (name, start <> modTxt)
+    where
+        moduleEnd = MP.choice [MP.try matchEnd, consumeLine ]
+        matchEnd = text "(" <> spaceCare <> (mconcat <$> MP.many endInner) <> spaceCare <> text ")"
+        endInner = MP.choice [ MP.try $ MP.lookAhead (char '(') *> matchEnd, TxT.singleton <$> MP.anySingleBut ')' ]
+
+
 
 commentDecl :: Parser T.Comment
 commentDecl = label "comment" $ MP.try singleLineCmtDecl <|> multiLineCmtDecl

@@ -17,10 +17,11 @@ data PackageInfo = PackageInfo { pkgName :: !Text } deriving(Show, Eq, Ord)
 data PackageSpec = PackageSpec { pkgInfo :: !PackageInfo, pkgExposes :: ![ModuleName] } deriving(Show, Eq, Ord)
 
 data ModuleName = ModuleName { modName :: !Text } deriving(Show, Eq, Ord)
-data Module = Module { modImports :: [Located ModuleName], modComments :: [Located Comment] } deriving (Eq, Show)
+type ImportDecl = (ModuleName, Text)
+data Module = Module { modImports :: [Located ImportDecl], modComments :: [Located Comment] } deriving (Eq, Show)
 data Comment = SingleLineCmt Text | MultiLineCmt Text Int deriving(Eq, Show, Ord)
 
-data Line = LineCmt Comment | LineImport ModuleName | LineEmpty
+data Line = LineCmt Comment | LineImport ImportDecl | LineEmpty
 
 instance Semigroup Module where
     lm <> rm = Module { modImports = modImports lm <> modImports rm, modComments = modComments lm <> modComments rm }
