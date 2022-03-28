@@ -24,7 +24,7 @@ import qualified System.Process  as SP
 import qualified Text.Megaparsec as MP
 import qualified Types           as T
 import Data.List (sortOn)
-import Debug.Trace (traceShow)
+import Debug.Trace (traceShow, traceShowId)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
@@ -43,17 +43,18 @@ run src = do
 linesPreserve ""  = []
 linesPreserve txt = TxT.split (=='\n') txt
 
-unlinesPreserve _ []     = ""
-unlinesPreserve s [x]    = s x
-unlinesPreserve s (x:xs) = s x <> "\n" <> unlinesPreserve s xs
+unlinesPreserve []     = ""
+unlinesPreserve [x]    = x
+unlinesPreserve (x:"":xs) = x <> "\n" <> unlinesPreserve xs
+unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
 
 cmtToTxt (T.SingleLineCmt c) = "-- " <> c
 
 unAST :: ProcessedAST -> Text
-unAST = unlinesPreserve unpackAST . stripOld
+unAST = unlinesPreserve . map unpackAST . stripOld
     where
         unpackAST (PRawLine l) = l
-        unpackAST (PImportGroup pkg imports) = unlinesPreserve id $ cmtToTxt (packageToComment pkg):map snd imports
+        unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment pkg):map snd imports
         stripOld = filter (\case
                             POldImportCmt _ -> False
                             _ -> True
