@@ -24,9 +24,9 @@ someplace = T.Located (T.Pos undefined)
 
 importDeclSuite = context "import decl suite" $ do
             it "can parse an unqualified line" $ do
-                parse P.importDecl (txt "") `shouldBe` expected
+                (fst <$> parse P.importDecl (txt "")) `shouldBe` expected
             it "can parse a qualified import" $ do
-                parse P.importDecl (txt "qualified") `shouldBe` expected
+                (fst <$> parse P.importDecl (txt "qualified")) `shouldBe` expected
             it "fails to parse an empty" $ do
                 parse P.importDecl "" `shouldSatisfy` isLeft
     where
@@ -56,7 +56,7 @@ moduleHeaderSuite = context "module header suite" $ do
         let results = map (\ls -> parse P.moduleDecl $ "module X.Y\n" <> txt "" <> ls <> "\n" <> ls) mutliLineOpts
         let expectedMutliline = fromRight undefined $ snd $ base ""
         let check xs = all ((== expectedMutliline) . T.unLocated) xs
-        mapM_ ((`shouldSatisfy` check) . T.modImports . fromRight undefined) results
+        mapM_ ((`shouldSatisfy` check) . map (fmap fst) . T.modImports . fromRight undefined) results
     it "parses multiline import with multilined import lists" $ do
         let txt = [r|module X.Y where
 
@@ -72,10 +72,10 @@ import           Control.Lens
 import           Control.Lens.Combinators                          (review)
         |]
         let expected = reverse $ map T.ModuleName ["X.Z", "Control.Lens", "Control.Lens.Combinators"]
-        let result = map T.unLocated . T.modImports <$> parse P.moduleDecl txt
+        let result = map (fst . T.unLocated) . T.modImports <$> parse P.moduleDecl txt
         result `shouldBeOk` expected
     where
-        expectedImport n = T.Module [(T.Located (T.Pos n) (T.ModuleName "Y"))]
+        expectedImport n = T.Module [(T.Located (T.Pos n) ((T.ModuleName "Y", undefined)))]
 
 packageExprSuite = context "package expression" $ do
     it "splits name properly" $
