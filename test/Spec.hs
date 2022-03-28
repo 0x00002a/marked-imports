@@ -75,7 +75,7 @@ import           Control.Lens.Combinators                          (review)
         let result = map (fst . T.unLocated) . T.modImports <$> parse P.moduleDecl txt
         result `shouldBeOk` expected
     where
-        expectedImport n = T.Module [(T.Located (T.Pos n) ((T.ModuleName "Y", undefined)))]
+        expectedImport n = T.Module [(T.Located (T.Pos n) ((T.ModuleName "Y", "import Y")))]
 
 packageExprSuite = context "package expression" $ do
     it "splits name properly" $
