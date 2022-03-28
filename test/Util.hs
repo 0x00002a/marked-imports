@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Util (toPretty, mkDummyCtx) where
+module Util (toPretty, mkFuncCtx, mkDummyCtx) where
 import qualified Text.Megaparsec as MP
 import Data.Text (Text)
 import qualified Packages as PKG
@@ -10,11 +10,19 @@ import qualified GhcPkg as GPKG
 import qualified Types as T
 
 newtype ConstSource = ConstSource Text
+newtype FuncSource = FuncSource (Text -> Text)
+
 instance PKG.MappingSource ConstSource where
     providerOfModule (ConstSource s) _ = pure $ pure (T.PackageInfo s)
 
+instance PKG.MappingSource FuncSource where
+    providerOfModule (FuncSource s) n = pure $ pure (T.PackageInfo (s (T.modName n)))
+
 mkDummyCtx :: Text -> T.Result ConstSource
 mkDummyCtx txt = pure $ ConstSource txt
+
+mkFuncCtx :: (Text -> Text) -> T.Result FuncSource
+mkFuncCtx = pure . FuncSource
 
 newtype PrettyError s e = PrettyError (MP.ParseErrorBundle s e)
 

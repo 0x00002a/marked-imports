@@ -2,6 +2,8 @@
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE FlexibleContexts     #-}
+
 module TestLib where
 import           Control.Monad     (when, (>=>))
 import           Data.Char         (isAlphaNum, isDigit, isLower, isUpper)
@@ -46,6 +48,17 @@ testCtxFb fall = do
 test :: PKG.MappingSource s => T.Result s -> IO ()
 test = const $ pure ()
 
+checkWithImports :: [Text] -> (Text -> Text) -> IO ()
+checkWithImports imports pkgLookup = do
+    rs <- runner (doc (const Nothing))
+    rs `shouldOutputOk` doc (Just . pkgLookup)
+    where
+        runner doc = L.runWithCtx (TUtil.mkFuncCtx pkgLookup) (testSrc doc)
+        doc f =
+            "module T where\n"
+            <> foldl (\xs m -> xs <> "\n" <> maybe "" ("-- " <>) (f m) <> "\nimport " <> m) mempty imports
+            <> "\n"
+
 spec = context "lib tests" $ do
     it "doesn't add additional comments for already commented input" $ do
         rs <- L.runWithCtx (TUtil.mkDummyCtx "text") (testSrc exampleCommentedInput)
@@ -64,3 +77,9 @@ spec = context "lib tests" $ do
         let runner doc = L.runWithCtx (TUtil.mkDummyCtx "text") (testSrc doc)
         rs <- runner $ doc "text1"
         rs `shouldOutputOk` doc "text1\n-- text"
+    it "handles multiline explicit imports" $ do
+        let modules = ["S", "Data.Maybe \n(Maybe\n)", "M2"]
+        let funcCtx "S" = "m1"
+            funcCtx _ = "base"
+        checkWithImports modules funcCtx
+
