@@ -87,7 +87,7 @@ eqByLine rx (T.Located lx _) = lx == rx
 mkAndPopulateStackDb :: IO (T.Result GPKG.MapStore)
 mkAndPopulateStackDb = GPKG.mkDbAndPopulate proc
     where
-        proc = GPKG.pkgCmd (\(cmd, args) -> SP.proc "stack" (["exec", "--", cmd] ++ args))
+        proc = GPKG.pkgCmd (uncurry SP.proc)
 
 mkPkgLookupCtx :: IO (T.Result (PKG.LocalPkgMatcher (GhcPkgDbSource GPKG.MapStore)))
 mkPkgLookupCtx = do

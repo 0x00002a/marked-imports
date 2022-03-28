@@ -47,7 +47,7 @@ spaceCare = TxT.pack <$> MP.many (MP.try MP.newline <|> MP.spaceChar)
 importDecl :: Parser T.ImportDecl
 importDecl = do
     start <- importStart <> spaceCare
-    modTxt <- MP.lookAhead $ fullMod
+    modTxt <- MP.lookAhead fullMod
     MP.optional moduleQualifiers >> space
     name <- moduleName <* space
     pure (name, start <> modTxt)
@@ -67,11 +67,11 @@ commentDecl = label "comment" $ MP.try singleLineCmtDecl <|> multiLineCmtDecl
     where
         singleLineCmtDecl = T.SingleLineCmt <$> (hspace *> text "--" *> consumeLine)
         multiLineCmtDecl = (\txt -> T.MultiLineCmt txt (length (TxT.lines txt))) <$> txtInsideMultiline
-        txtInsideMultiline = (hspace *> text "{-" *> (TxT.pack <$> (MP.manyTill MP.anySingle (text "-}"))))
+        txtInsideMultiline = hspace *> text "{-" *> (TxT.pack <$> MP.manyTill MP.anySingle (text "-}"))
 
 located :: Parser a -> Parser (T.Located a)
 located p =
-    MP.getSourcePos >>= \pos -> (T.Located (T.Pos (MP.unPos $ MP.sourceLine pos))) <$> p
+    MP.getSourcePos >>= \pos -> T.Located (T.Pos (MP.unPos $ MP.sourceLine pos)) <$> p
 
 parseLine :: Parser T.Line
 parseLine = MP.choice $ map MP.try [
@@ -90,9 +90,9 @@ moduleDecl = label "module declaration" $ moduleStart *> parseContent
         parseContentLine = Just <$> MP.try (located parseLine) <|> Nothing <$ consumeLine_
         fixOrder mod = mod { T.modComments = reverse (T.modComments mod), T.modImports = reverse (T.modImports mod) }
         unpackLines mod (T.Located src v) = intoModule src v mod
-        intoModule src (T.LineCmt cmt) mod = mod { T.modComments = (T.Located src cmt):T.modComments mod }
-        intoModule src (T.LineImport imp) mod = mod { T.modImports = (T.Located src imp):T.modImports mod }
-        intoModule _ (T.LineEmpty) mod = mod
+        intoModule src (T.LineCmt cmt) mod = mod { T.modComments = T.Located src cmt:T.modComments mod }
+        intoModule src (T.LineImport imp) mod = mod { T.modImports = T.Located src imp:T.modImports mod }
+        intoModule _ T.LineEmpty mod = mod
 
 word :: Parser Text
 word = label "word" $ TxT.pack <$> MP.many MP.letterChar
@@ -101,7 +101,7 @@ someword = label "someworld" $ TxT.pack <$> MP.some MP.letterChar
 
 packageExpr :: Parser T.PackageInfo
 packageExpr = label "package expr" $
-    T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> fmap (:[]) someword <> MP.many (MP.try $ char '-' *> someword) <* MP.optional versionExpr)
+    T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> sepByProper someword (char '-') <* MP.optional versionExpr)
     where
         removeDash v = fromMaybe v $ TxT.stripSuffix "-" v
         versionExpr = text "-" ><> tNum ><> (mconcat <$> MP.many (text "." ><> tNum))
@@ -131,7 +131,7 @@ packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill 
 
 ghcPkgDump :: Parser [T.PackageSpec]
 ghcPkgDump = label "ghc-pkg dump" $
-        MP.many (MP.try $ packageSpec <* MP.skipManyTill MP.anySingle (text "---\n")) <> ((:[]) <$> packageSpec)
+        sepByProper packageSpec (MP.skipManyTill MP.anySingle (text "---" <* MP.eol))
 
 
 
