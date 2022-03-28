@@ -42,8 +42,9 @@ spec = context "packages context" $ do
         let mctx = fromRight <$> L.mkAndPopulateStackDb
         it "has System.Exit" $ do
             ctx <- mctx
-            let pkg = fromJust $ GPKG.lookup ctx (T.ModuleName "System.Exit")
-            pkg `shouldSatisfy` (\pkg -> (T.pkgName $ T.pkgInfo pkg) == "base")
+            let pkg = GPKG.lookup ctx (T.ModuleName "System.Exit")
+            pkg `shouldSatisfy` isJust
+            pkg `shouldSatisfy` (\pkg -> (T.pkgName $ T.pkgInfo (fromJust pkg)) == "base")
         it "has the base package" $ do
             ctx <- mctx
             (map (T.pkgName . T.pkgInfo) (GPKG.all ctx)) `shouldContain` ["base"]

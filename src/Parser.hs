@@ -97,23 +97,37 @@ moduleDecl = label "module declaration" $ moduleStart *> parseContent
 word :: Parser Text
 word = label "word" $ TxT.pack <$> MP.many MP.letterChar
 
+someword = label "someworld" $ TxT.pack <$> MP.some MP.letterChar
 
 packageExpr :: Parser T.PackageInfo
 packageExpr = label "package expr" $
-    T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> (MP.sepBy1 word (char '-')) <* MP.optional versionExpr)
+    T.PackageInfo <$> (removeDash . Util.mconcatInfix "-" <$> fmap (:[]) someword <> MP.many (MP.try $ char '-' *> someword) <* MP.optional versionExpr)
     where
         removeDash v = fromMaybe v $ TxT.stripSuffix "-" v
         versionExpr = text "-" ><> tNum ><> (mconcat <$> MP.many (text "." ><> tNum))
         tNum = TxT.singleton <$> MP.numberChar
 
+sepByProper p c = fmap (:[]) p <> MP.many (MP.try $ c *> p)
 
 packageSpec :: Parser T.PackageSpec
 packageSpec = label "package spec" $ T.PackageSpec <$> name <*> MP.skipManyTill consumeLine_ exposes
     where
         namePrefix = text "name:" *> hspace
-        name = T.PackageInfo <$> (namePrefix *> (mconcat <$> (MP.many (MP.try $ word <> text "-"))) <> word)
-        exposes = text "exposed-modules:" *> space *> MP.many (MP.try moduleName <* modEnd)
-        modEnd = MP.optional (char ',') *> space
+        nameBody = MP.many (MP.try $ word <> text "-")
+        name = T.PackageInfo <$> (namePrefix *> (mconcat <$> nameBody) <> word)
+        exposes = text "exposed-modules:" *> sepByProper exposesEl (MP.optional (char ',') *> space)
+        exposesEl =
+            space *>
+            moduleName
+            <* MP.optional (MP.try $
+                space
+                >> text "from"
+                >> space
+                >> packageExpr
+                >> char ':'
+                >> moduleName
+            )
+        --modEnd = char ',' *> space
 
 ghcPkgDump :: Parser [T.PackageSpec]
 ghcPkgDump = label "ghc-pkg dump" $

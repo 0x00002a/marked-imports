@@ -89,6 +89,8 @@ packageExprSuite = context "package expression" $ do
         parse (P.packageExpr) "example-0.13.3" `shouldBeOk` T.PackageInfo "example"
     it "handles name-with-dash-version properly" $ do
         parse (P.packageExpr) "example-dash-0.1.2" `shouldBeOk` T.PackageInfo "example-dash"
+    it "handles name-with-dash-second-version properly" $ do
+        parse (P.packageExpr) "example-dash-thesec-2.1.2" `shouldBeOk` T.PackageInfo "example-dash-thesec"
 
 packageSpecSuite = context "package spec" $ do
     it "fails for empty input" $ do
@@ -103,6 +105,9 @@ packageSpecSuite = context "package spec" $ do
         parse P.ghcPkgDump (basicInput <> "\n---\n" <> basicInput) `shouldBeOk` [expected, expected]
     it "handles name-with-dash correctly" $ do
         parse P.packageSpec "name: example-dash\nexposed-modules: Data.TA" `shouldBeOk` T.PackageSpec (T.PackageInfo "example-dash") [T.ModuleName "Data.TA"]
+    it "handles name with from correctly" $ do
+        let rs = parse P.packageSpec "name: example\nexposed-modules: Data.TA from ghc-example-2.1:Y.TA, Data.HA"
+        rs `shouldBeOk` T.PackageSpec (T.PackageInfo "example") [T.ModuleName "Data.TA", T.ModuleName "Data.HA"]
     where
         expected = T.PackageSpec (T.PackageInfo "testme") [T.ModuleName "Data.TA", T.ModuleName "Data.TB"]
         basicInput = basicInputSep " " -- TODO: QuickCheck this
