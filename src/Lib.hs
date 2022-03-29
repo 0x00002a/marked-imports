@@ -124,7 +124,7 @@ linesPreserve txt = TxT.split (=='\n') txt
 
 unlinesPreserve []     = ""
 unlinesPreserve [x]    = x
-unlinesPreserve (x:"":xs) = x <> "\n" <> unlinesPreserve xs
+--unlinesPreserve (x:"":xs) = x <> "\n" <> unlinesPreserve xs
 unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
 
 cmtToTxt (T.SingleLineCmt "") = ""
