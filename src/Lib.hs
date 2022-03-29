@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
-    unAST, stripPackageComments, runT
+    unAST, stripPackageComments, runT, sortImportsOn
     ) where
 
 import           Control.Arrow   (first, second)
@@ -61,6 +61,15 @@ errorPretty (msg, loc) =
     <> snd (T.unLocated loc)
     <> "\nerror: "
     <> msg
+
+sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
+sortImportsOn f ast = Util.reconstructFromIndexes (sortedPkgs <> nonPkgs)
+    where
+        extractPackages = Util.indexPairs ast
+        sortedPkgs = sortOn (\(PImportGroup n _, _) -> f n) $ filter doFilter extractPackages
+        nonPkgs = filter (not . doFilter) extractPackages
+        doFilter (PImportGroup _ _, _) = True
+        doFilter _ = False
 
 stripPackageInfo :: ProcessedAST -> ProcessedAST
 stripPackageInfo = sortOn sortFn . concatMap doStrip

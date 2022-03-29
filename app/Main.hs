@@ -38,6 +38,11 @@ maybeStrip args ast
     | isJust (find (== ARG.FlagStripComments) args) = Lib.stripPackageComments ast
     | otherwise = ast
 
+placeLocalLowest ast = Lib.sortImportsOn (\pkg -> if (T.pkgName pkg) == "local"
+                        then (length ast)
+                        else 0
+                        ) ast
+
 handleArgs args
     | isJust (find (== ARG.FlagInplace) (ARG.appFlags args)) = do
             tmpDir <- DIR.getTemporaryDirectory
@@ -50,7 +55,7 @@ handleArgs args
         rs <- result
         writeOutput IO.stdout rs
     where
-        result = run (ARG.appInput args) (maybeStrip (ARG.appFlags args))
+        result = run (ARG.appInput args) (placeLocalLowest . maybeStrip (ARG.appFlags args))
         inputName = TxT.unpack $ ARG.appInput args
         copyOtherwise :: String -> IOException -> IO ()
         copyOtherwise fp _ = DIR.copyFile fp inputName >> DIR.removeFile fp

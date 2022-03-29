@@ -11,6 +11,7 @@ import Control.Monad ((<=<), join)
 import qualified Types as T
 import System.FilePath as FP
 import Control.Arrow (Arrow(second))
+import Data.List (sortOn)
 
 
 result :: Text -> Maybe a -> T.Result a
@@ -27,6 +28,12 @@ mapLeft _ (Right v) = Right v
 
 nameOfLocalPackage :: IO (Maybe Text)
 nameOfLocalPackage = nameOfLocalPackage' SD.listDirectory
+
+indexPairs :: (Applicative f, Monoid (f (a, n)), Foldable f, Num n) => f a -> f (a, n)
+indexPairs = foldlWithIndex (\xs n x -> xs <> pure (x,n)) mempty
+
+reconstructFromIndexes :: (Num n, Ord n) => [(a, n)] -> [a]
+reconstructFromIndexes = map fst . sortOn snd
 
 linesCoveredByImport :: T.Located T.ImportDecl -> [Int]
 linesCoveredByImport imp = covered
