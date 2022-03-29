@@ -74,14 +74,22 @@ setLoc (PRawLine n) p = PRawLine (T.Located p (T.unLocated n))
 
 sortOnPos = sortOn unLoc
 
+offsetBy :: T.Pos -> ProcessedNode -> ProcessedNode
+offsetBy p n = setLoc n (unLoc n + p)
+
 addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
 addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
     where
         doMap xs v@(PImportGroup _ _) = setLoc v (curr + T.Pos lines):genLines curr <> xs
             where
                 curr = locationSum xs + 1
-        doMap xs x = x:xs
+        doMap xs x = offsetBy (T.Pos offset) x:xs
+            where
+                offset = lines * (length $ filter filterByImpGroup xs)
         genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines - 1)]
+
+filterByImpGroup (PImportGroup _ _) = True
+filterByImpGroup _ = False
 
 sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
 sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
