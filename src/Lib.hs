@@ -3,14 +3,14 @@
 {-# LANGUAGE TupleSections #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
-    unAST, stripPackageComments, runT, sortImportsOn
+    unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..)
     ) where
 
 import           Control.Arrow   (first, second)
 import           Control.Monad   (foldM, join)
 import           Data.Bifunctor  (Bifunctor (bimap))
 import           Data.Foldable   (foldlM, toList)
-import           Data.List       (find)
+import           Data.List       (find, sort)
 import           Data.Map        (Map)
 import qualified Data.Map        as M
 import           Data.Maybe      (catMaybes, fromJust, fromMaybe, isJust)
@@ -31,7 +31,7 @@ import Control.Monad.Cont (liftIO)
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
-data ProcessedNode = PRawLine (T.Located Text) | POldImportCmt (T.Located Text) | PImportGroup T.PackageInfo [T.Located T.ImportDecl] deriving (Show, Eq)
+data ProcessedNode = PRawLine (T.Located Text) | POldImportCmt (T.Located Text) | PImportGroup (T.Located T.PackageInfo) [T.Located T.ImportDecl] deriving (Show, Eq)
 type ProcessedAST = [ProcessedNode]
 
 type ProcessErr = (Text, T.Located T.ImportDecl)
@@ -62,17 +62,38 @@ errorPretty (msg, loc) =
     <> "\nerror: "
     <> msg
 
-sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
-sortImportsOn f ast = Util.reconstructFromIndexes (sortedPkgs <> nonPkgs)
+unLoc :: ProcessedNode -> T.Pos
+unLoc (PImportGroup n _) = T.posOf n
+unLoc (POldImportCmt n) = T.posOf n
+unLoc (PRawLine n) = T.posOf n
+
+setLoc :: ProcessedNode -> T.Pos -> ProcessedNode
+setLoc (PImportGroup n i) p = PImportGroup (T.Located p (T.unLocated n)) i
+setLoc (POldImportCmt n) p = POldImportCmt (T.Located p (T.unLocated n))
+setLoc (PRawLine n) p = PRawLine (T.Located p (T.unLocated n))
+
+addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
+addLinesBeforeGroups lines = concatMap doMap
     where
-        extractPackages = Util.indexPairs ast
-        sortedPkgs = sortOn (\(PImportGroup n _, _) -> f n) $ filter doFilter extractPackages
+        doMap v@(PImportGroup _ _) = setLoc v (unLoc v + T.Pos lines + 1):genLines (unLoc v)
+        doMap x = [x]
+        genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines)]
+
+sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
+sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
+    where
+        extractPackages = map (\x -> (x, unLoc x)) ast
+        sortedPkgs = applyIndex . sortOn (\(PImportGroup n _, _) -> f (T.unLocated n)) $ filter doFilter extractPackages
+        applyIndex xs = zipWith setLoc pkgs positions
+            where
+                pkgs = map fst xs
+                positions = sort (map snd xs)
         nonPkgs = filter (not . doFilter) extractPackages
         doFilter (PImportGroup _ _, _) = True
         doFilter _ = False
 
 stripPackageInfo :: ProcessedAST -> ProcessedAST
-stripPackageInfo = sortOn sortFn . concatMap doStrip
+stripPackageInfo = concatMap doStrip
     where
         sortFn (POldImportCmt line) = T.posOf line
         sortFn (PRawLine line) = T.posOf line
@@ -98,10 +119,11 @@ cmtToTxt (T.SingleLineCmt "") = ""
 cmtToTxt (T.SingleLineCmt c) = "-- " <> c
 
 unAST :: ProcessedAST -> Text
-unAST = unlinesPreserve . map unpackAST . stripOld
+unAST = unlinesPreserve . map unpackAST . sortByPos . stripOld
     where
+        sortByPos = sortOn unLoc
         unpackAST (PRawLine l) = T.unLocated l
-        unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment pkg):map (snd . T.unLocated) imports
+        unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment (T.unLocated pkg)):map (snd . T.unLocated) imports
         stripOld = filter (\case
                             POldImportCmt _ -> False
                             _ -> True
@@ -154,6 +176,14 @@ extractImports ctx mod = foldlM  doFold (mempty, mempty) (T.modImports mod)
                 Left err -> (xs, (err, name):errs)
                 Right info -> (M.insert info (name:M.findWithDefault [] info xs) xs, errs)
 
+locationSum :: ProcessedAST -> T.Pos
+locationSum [] = T.Pos 0
+locationSum (x:xs) = foldl (\xs x -> xs + doProcess x) (doProcess x) xs
+    where
+        doProcess (POldImportCmt m) = T.posOf m
+        doProcess (PRawLine l) = T.posOf l
+        doProcess (PImportGroup n _) = T.posOf n
+
 modifyContent :: PKG.MappingSource s => s -> Text -> T.Module -> IO (ProcessedAST, [(Text, T.Located T.ImportDecl)])
 modifyContent mapCtx txt mod = do
     imports <- extractImports mapCtx mod
@@ -171,16 +201,16 @@ modifyContent mapCtx txt mod = do
         importsRange = case importLines of
             []    -> Nothing
             lines -> Just (minimum lines, maximum lines)
-        toCommentGroup (pkg, imports) = PImportGroup pkg imports
+        toCommentGroup xs (pkg, imports) = xs <> [PImportGroup (T.Located (locationSum xs + 1) pkg) imports]
         oldComments pkgs = filter (`Set.notMember` pkgCmts pkgs) . Set.toList . pkgCmts . M.keysSet
             where
                 pkgCmts = Set.map (cmtToTxt . packageToComment)
-        commented :: Map T.PackageInfo [T.Located T.ImportDecl] -> ProcessedAST
-        commented = map toCommentGroup . M.toList
+        --commented :: Map T.PackageInfo [T.Located T.ImportDecl] -> ProcessedAST
+        commented start = foldl toCommentGroup start . M.toList
         foldLines :: Map T.PackageInfo [T.Located T.ImportDecl] -> [ProcessedNode] -> Int -> Text -> [ProcessedNode]
         foldLines imports result lineNb line
             | maybe False ((lineNb ==) . fst) importsRange =
-                result <> commented imports
+                commented result imports
 
             | commentOnLine lineNb && notPassthroughComment line = result <> [POldImportCmt (T.Located pos line)]
             | importOnLine lineNb = result

@@ -32,6 +32,18 @@ instance Monoid Module where
 instance Functor Located where
     fmap f (Located p v) = Located p (f v)
 
+instance Enum Pos where
+    toEnum = Pos
+    fromEnum = srcLine
+
+instance Num Pos where
+    x + y = Pos $ srcLine x + srcLine y
+    x * y = Pos $ srcLine x * srcLine y
+    abs = Pos . abs . srcLine
+    signum = Pos . signum . srcLine
+    fromInteger = Pos . fromInteger
+    negate = Pos . negate . srcLine
+
 
 unLocated :: Located a -> a
 unLocated (Located _ v) = v
