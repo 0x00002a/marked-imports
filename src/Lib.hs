@@ -72,12 +72,16 @@ setLoc (PImportGroup n i) p = PImportGroup (T.Located p (T.unLocated n)) i
 setLoc (POldImportCmt n) p = POldImportCmt (T.Located p (T.unLocated n))
 setLoc (PRawLine n) p = PRawLine (T.Located p (T.unLocated n))
 
+sortOnPos = sortOn unLoc
+
 addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
-addLinesBeforeGroups lines = concatMap doMap
+addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
     where
-        doMap v@(PImportGroup _ _) = setLoc v (unLoc v + T.Pos lines + 1):genLines (unLoc v)
-        doMap x = [x]
-        genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines)]
+        doMap xs v@(PImportGroup _ _) = setLoc v (curr + T.Pos lines):genLines curr <> xs
+            where
+                curr = locationSum xs + 1
+        doMap xs x = x:xs
+        genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines - 1)]
 
 sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
 sortImportsOn f ast = sortedPkgs <> map fst nonPkgs

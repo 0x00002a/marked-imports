@@ -87,4 +87,10 @@ spec = context "lib tests" $ do
             L.locationSum [L.PRawLine (T.Located 1 "")] `shouldBe` 1
         it "produces max for double" $ do
             L.locationSum [L.PRawLine (T.Located 1 ""), L.PRawLine (T.Located 3 "")] `shouldBe` 3
+    describe "addLinesBeforeGroups" $ do
+        it "adds n blank lines" $ do
+            let input = [L.PImportGroup (T.Located 1 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")]]
+            let input' = [L.PRawLine (T.Located 1 ""), L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 4 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")], L.PRawLine (T.Located 3 "")]
+            let rs = L.addLinesBeforeGroups 1 input
+            rs `shouldMatchList` input'
 
