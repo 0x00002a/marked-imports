@@ -82,4 +82,9 @@ spec = context "lib tests" $ do
         let funcCtx "S" = "m1"
             funcCtx _ = "z"
         checkWithImports modules funcCtx
+    describe "locationSum" $ do
+        it "produces input for single" $ do
+            L.locationSum [L.PRawLine (T.Located 1 "")] `shouldBe` 1
+        it "produces max for double" $ do
+            L.locationSum [L.PRawLine (T.Located 1 ""), L.PRawLine (T.Located 3 "")] `shouldBe` 3
 

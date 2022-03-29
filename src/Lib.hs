@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
-    unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..)
+    unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..), locationSum
     ) where
 
 import           Control.Arrow   (first, second)
@@ -178,11 +178,12 @@ extractImports ctx mod = foldlM  doFold (mempty, mempty) (T.modImports mod)
 
 locationSum :: ProcessedAST -> T.Pos
 locationSum [] = T.Pos 0
-locationSum (x:xs) = foldl (\xs x -> xs + doProcess x) (doProcess x) xs
+locationSum xs = maximum $ map doProcess xs
     where
         doProcess (POldImportCmt m) = T.posOf m
         doProcess (PRawLine l) = T.posOf l
-        doProcess (PImportGroup n _) = T.posOf n
+        doProcess (PImportGroup n im) = T.posOf n + importDiff im
+        importDiff im = sum $ map (\i -> T.Pos (maximum (Util.linesCoveredByImport i)) - T.posOf i) im
 
 modifyContent :: PKG.MappingSource s => s -> Text -> T.Module -> IO (ProcessedAST, [(Text, T.Located T.ImportDecl)])
 modifyContent mapCtx txt mod = do
