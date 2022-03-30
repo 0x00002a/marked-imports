@@ -30,9 +30,9 @@ readInput "-" = TxT.hGetContents IO.stdin
 readInput name = IO.withFile (TxT.unpack name) IO.ReadMode TxT.hGetContents
 
 
-writeOutput :: IO.Handle -> (Text, Text) -> IO ()
-writeOutput h (content, "") = TxT.hPutStr h content
-writeOutput _ (_, errs) = TxT.hPutStr IO.stderr errs
+writeOutput :: IO.Handle -> FilePath -> (Text, Text) -> IO ()
+writeOutput h _ (content, "") = TxT.hPutStr h content
+writeOutput _ file (_, errs) = TxT.hPutStr IO.stderr $ TxT.pack file <> ": " <> errs
 
 maybeStrip args ast
     | isJust (find (== ARG.FlagStripComments) args) = Lib.stripPackageComments ast
@@ -48,12 +48,12 @@ handleArgs args
             tmpDir <- DIR.getTemporaryDirectory
             (fp, file) <- IO.openTempFile tmpDir "marked-imports.inplace.tmp"
             rs <- result
-            writeOutput file rs
+            writeOutput file inputName rs
             IO.hClose file
             catch (DIR.renameFile fp inputName) (copyOtherwise fp)
     | otherwise = do
         rs <- result
-        writeOutput IO.stdout rs
+        writeOutput IO.stdout inputName rs
     where
         result = run (ARG.appInput args) (Lib.addLinesBeforeGroups 2 . placeLocalLowest . maybeStrip (ARG.appFlags args))
         inputName = TxT.unpack $ ARG.appInput args
