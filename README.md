@@ -12,7 +12,8 @@ mimps <file> [-i]
 ```
 
 Note you'll need a <packagename>.cabal file in your source root and you'll need to run the above in either
-your source root or a subdirectory of it, you'll also need to be using stack
+your source root or a subdirectory of it. If your using stack you should run it with `stack exec -- mimps ...`
+instead so it can access your stack environment.
 
 
 ## Examples
@@ -38,4 +39,12 @@ import MyLocalModule
 ## Installation
 
 Clone this repo, then run `stack install`
+
+## Troubleshooting
+
+If you get a bunch of errors about being unable to find packages, make sure:
+
+- If your using stack your running with `stack exec` **and** that your stack env is up to date (run `stack build` if unsure)
+- The package shows up if you run `ghc-pkg find-module <module in error>` if it doesn't then ghc isn't aware of the package
+  either and your build shouldn't be working
 
