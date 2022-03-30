@@ -21,6 +21,7 @@ import           Data.Either       (fromRight)
 import qualified Packages          as PKG
 import           Test.QuickCheck   as QC
 import           Text.RawString.QQ
+import Debug.Trace (traceShowId)
 
 
 exampleCommentedInput = "module T where\n-- text\nimport Data.Text\n"
@@ -93,4 +94,17 @@ spec = context "lib tests" $ do
             let input' = [L.PRawLine (T.Located 1 ""), L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 4 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")], L.PRawLine (T.Located 3 "")]
             let rs = L.addLinesBeforeGroups 1 input
             rs `shouldMatchList` input'
+    it "handles case with =>" $ do
+        let input = [r|
+module M where
+
+-- local
+import X
+
+-- test
+class (y x, z (m h)) => z
+        |]
+        let runner = L.runWithCtx (TUtil.mkDummyCtx "local") (testSrc input)
+        rs <- runner
+        rs `shouldOutputOk` input
 

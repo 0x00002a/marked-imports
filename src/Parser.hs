@@ -16,6 +16,8 @@ import qualified Data.Text             as TxT
 import           LUtil                 ((><>))
 import qualified LUtil                 as Util
 import qualified Types                 as T
+import qualified Text.Megaparsec as MP
+import Control.Arrow (first)
 
 type Parser a = MP.Parsec Text Text a
 
@@ -53,11 +55,14 @@ importDecl = do
     pure (name, start <> modTxt)
     where
         importStart = text "import"
-        moduleEnd = MP.choice [MP.try matchEnd, consumeLine ]
         matchEnd = text "(" <> spaceCare <> (mconcat <$> MP.many endInner) <> spaceCare <> text ")"
         endInner = MP.choice [ MP.try $ MP.lookAhead (char '(') *> matchEnd, TxT.singleton <$> MP.anySingleBut ')' ]
-        explicitImport = (TxT.pack <$> MP.someTill explicitImportCond (MP.lookAhead $ char '(')) <> matchEnd
-        explicitImportCond = MP.optional (MP.lookAhead (MP.eol >> MP.notFollowedBy importStart)) >> MP.anySingleBut '('
+        explicitImportSect = spaceCare <> matchEnd
+        startsOnSameLine =
+            (uncurry (<>) . first TxT.pack <$> MP.manyTill_ MP.anySingle (MP.try MP.eol <|> ("" <$ MP.lookAhead (char '('))))
+            <> (MP.lookAhead (char '(') *> explicitImportSect)
+        multiLineExplicit = consumeLine <> explicitImportSect
+        explicitImport = MP.try startsOnSameLine <|> multiLineExplicit
         fullMod = MP.try explicitImport <|> consumeLine
 
 

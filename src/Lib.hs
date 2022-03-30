@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
-    unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..), locationSum
+    unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..), locationSum, runWithCtxT
     ) where
 
 import           Control.Arrow   (first, second)
