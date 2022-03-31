@@ -33,6 +33,10 @@ importDeclSuite = context "import decl suite" $ do
                 let txt = "import Z" <> "\n" <> "import H \n(M\n)"
                 let rs = parse (MP.some P.importDecl) txt
                 rs `shouldBeOk` [(T.ModuleName "Z", "import Z"), (T.ModuleName "H", "import H \n(M\n)")]
+            it "parses multiline with newline start" $ do
+                let txt = "import Z\n   ( thing1\n, thing2 )"
+                let rs = parse P.importDecl txt
+                rs `shouldBeOk` (T.ModuleName "Z", txt)
     where
         base qual = moduleTxt qual "X.Y"
         expectedQual q = (snd $ base q, fst $ base q)

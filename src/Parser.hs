@@ -18,6 +18,7 @@ import           LUtil                 ( (><>) )
 import qualified LUtil                 as Util
 import qualified Text.Megaparsec       as MP
 import qualified Types                 as T
+import Text.Megaparsec.Debug (dbg)
 
 type Parser a = MP.Parsec Text Text a
 
@@ -41,6 +42,9 @@ consumeLine_ = MP.skipManyTill MP.anySingle (void MP.eol <|> MP.eof)
 consumeLine :: Parser Text
 consumeLine = TxT.pack <$> MP.manyTill MP.anySingle (void MP.eol <|> MP.eof)
 
+consumeLineWithNl :: Parser Text
+consumeLineWithNl = uncurry (<>) . first TxT.pack <$> MP.manyTill_ MP.anySingle MP.eol
+
 moduleQualifiers = MP.choice [text "qualified"]
 
 spaceCare :: Parser Text
@@ -61,7 +65,7 @@ importDecl = do
         startsOnSameLine =
             (uncurry (<>) . first TxT.pack <$> MP.manyTill_ MP.anySingle (MP.try MP.eol <|> ("" <$ MP.lookAhead (char '('))))
             <> (MP.lookAhead (char '(') *> explicitImportSect)
-        multiLineExplicit = consumeLine <> explicitImportSect
+        multiLineExplicit = consumeLineWithNl <> explicitImportSect
         explicitImport = MP.try startsOnSameLine <|> multiLineExplicit
         fullMod = MP.try explicitImport <|> consumeLine
 
