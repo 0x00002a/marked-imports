@@ -1,20 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections     #-}
 module Main where
 
+import qualified Args               as ARG
+import           Control.Exception  ( IOException, catch )
+import           Data.Bifunctor     ( Bifunctor (bimap) )
+import           Data.List          ( find )
+import           Data.Maybe         ( isJust )
+import           Data.Text          ( Text, pack, unpack )
+import qualified Data.Text          as TxT
+import qualified Data.Text.IO       as TxT
 import qualified Lib
-import qualified Types as T
+import qualified System.Directory   as DIR
 import qualified System.Environment as SE
-import Data.Text (Text, pack, unpack)
-import Data.Bifunctor (Bifunctor(bimap))
-import qualified System.IO as IO
-import qualified Args as ARG
-import Data.List (find)
-import Data.Maybe (isJust)
-import qualified Data.Text as TxT
-import qualified Data.Text.IO as TxT
-import qualified System.Directory as DIR
-import Control.Exception (catch, IOException)
+import qualified System.IO          as IO
+import qualified Types              as T
 
 
 main :: IO ()
@@ -26,13 +26,13 @@ run name f = do
     Lib.runT (T.SourceInfo name content) f
 
 readInput :: Text -> IO Text
-readInput "-" = TxT.hGetContents IO.stdin
+readInput "-"  = TxT.hGetContents IO.stdin
 readInput name = IO.withFile (TxT.unpack name) IO.ReadMode TxT.hGetContents
 
 
 writeOutput :: IO.Handle -> FilePath -> (Text, Text) -> IO ()
 writeOutput h _ (content, "") = TxT.hPutStr h content
-writeOutput _ file (_, errs) = TxT.hPutStr IO.stderr $ TxT.pack file <> ": " <> errs
+writeOutput _ file (_, errs)  = TxT.hPutStr IO.stderr $ TxT.pack file <> ": " <> errs
 
 maybeStrip args ast
     | isJust (find (== ARG.FlagStripComments) args) = Lib.stripPackageComments ast

@@ -3,21 +3,21 @@
 module Parser where
 
 
-import           Text.Megaparsec       (label, (<?>), (<|>))
 import qualified Text.Megaparsec       as MP
-import           Text.Megaparsec.Char  (char, hspace, letterChar, space, string)
+import           Text.Megaparsec       ( label, (<?>), (<|>) )
 import qualified Text.Megaparsec.Char  as MP
+import           Text.Megaparsec.Char  ( char, hspace, letterChar, space, string )
 import qualified Text.Megaparsec.Debug as MP
 
-import           Control.Monad         (void, (>=>))
-import           Data.Maybe            (catMaybes, fromMaybe)
-import           Data.Text             (Text)
+import           Control.Arrow         ( first )
+import           Control.Monad         ( void, (>=>) )
+import           Data.Maybe            ( catMaybes, fromMaybe )
+import           Data.Text             ( Text )
 import qualified Data.Text             as TxT
-import           LUtil                 ((><>))
+import           LUtil                 ( (><>) )
 import qualified LUtil                 as Util
+import qualified Text.Megaparsec       as MP
 import qualified Types                 as T
-import qualified Text.Megaparsec as MP
-import Control.Arrow (first)
 
 type Parser a = MP.Parsec Text Text a
 
@@ -95,9 +95,9 @@ moduleDecl = label "module declaration" $ moduleStart *> parseContent
         parseContentLine = Just <$> MP.try (located parseLine) <|> Nothing <$ consumeLine_
         fixOrder mod = mod { T.modComments = reverse (T.modComments mod), T.modImports = reverse (T.modImports mod) }
         unpackLines mod (T.Located src v) = intoModule src v mod
-        intoModule src (T.LineCmt cmt) mod = mod { T.modComments = T.Located src cmt:T.modComments mod }
+        intoModule src (T.LineCmt cmt) mod    = mod { T.modComments = T.Located src cmt:T.modComments mod }
         intoModule src (T.LineImport imp) mod = mod { T.modImports = T.Located src imp:T.modImports mod }
-        intoModule _ T.LineEmpty mod = mod
+        intoModule _ T.LineEmpty mod          = mod
 
 word :: Parser Text
 word = label "word" $ TxT.pack <$> MP.many MP.letterChar

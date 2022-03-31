@@ -1,33 +1,32 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections     #-}
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
     unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..), locationSum, runWithCtxT
     ) where
 
-import           Control.Arrow   (first, second)
-import           Control.Monad   (foldM, join)
-import           Data.Bifunctor  (Bifunctor (bimap))
-import           Data.Foldable   (foldlM, toList)
-import           Data.List       (find, sort)
-import           Data.Map        (Map)
-import qualified Data.Map        as M
-import           Data.Maybe      (catMaybes, fromJust, fromMaybe, isJust)
-import qualified Data.Set        as Set
-import           Data.Text       (Text, pack, unpack)
-import qualified Data.Text       as TxT
-import qualified GhcPkg          as GPKG
-import qualified LUtil           as Util
-import qualified Packages        as PKG
-import qualified Parser          as P
-import           System.Exit     (ExitCode (..))
-import qualified System.Process  as SP
-import qualified Text.Megaparsec as MP
-import qualified Types           as T
-import Data.List (sortOn)
-import Debug.Trace (traceShow, traceShowId)
-import Control.Monad.Cont (liftIO)
+import           Control.Arrow      ( first, second )
+import           Control.Monad      ( foldM, join )
+import           Control.Monad.Cont ( liftIO )
+import           Data.Bifunctor     ( Bifunctor (bimap) )
+import           Data.Foldable      ( foldlM, toList )
+import           Data.List          ( find, sort, sortOn )
+import           Data.Map           ( Map )
+import qualified Data.Map           as M
+import           Data.Maybe         ( catMaybes, fromJust, fromMaybe, isJust )
+import qualified Data.Set           as Set
+import           Data.Text          ( Text, pack, unpack )
+import qualified Data.Text          as TxT
+import           Debug.Trace        ( traceShow, traceShowId )
+import qualified GhcPkg             as GPKG
+import qualified LUtil              as Util
+import qualified Packages           as PKG
+import qualified Parser             as P
+import           System.Exit        ( ExitCode (..) )
+import qualified System.Process     as SP
+import qualified Text.Megaparsec    as MP
+import qualified Types              as T
 
 newtype GhcPkgDbSource db = GhcPkgDbSource db
 
@@ -64,13 +63,13 @@ errorPretty (msg, loc) =
 
 unLoc :: ProcessedNode -> T.Pos
 unLoc (PImportGroup n _) = T.posOf n
-unLoc (POldImportCmt n) = T.posOf n
-unLoc (PRawLine n) = T.posOf n
+unLoc (POldImportCmt n)  = T.posOf n
+unLoc (PRawLine n)       = T.posOf n
 
 setLoc :: ProcessedNode -> T.Pos -> ProcessedNode
 setLoc (PImportGroup n i) p = PImportGroup (T.Located p (T.unLocated n)) i
-setLoc (POldImportCmt n) p = POldImportCmt (T.Located p (T.unLocated n))
-setLoc (PRawLine n) p = PRawLine (T.Located p (T.unLocated n))
+setLoc (POldImportCmt n) p  = POldImportCmt (T.Located p (T.unLocated n))
+setLoc (PRawLine n) p       = PRawLine (T.Located p (T.unLocated n))
 
 sortOnPos = sortOn unLoc
 
@@ -89,7 +88,7 @@ addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
         genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines - 1)]
 
 filterByImpGroup (PImportGroup _ _) = True
-filterByImpGroup _ = False
+filterByImpGroup _                  = False
 
 sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
 sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
@@ -102,22 +101,22 @@ sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
                 positions = sort (map snd xs)
         nonPkgs = filter (not . doFilter) extractPackages
         doFilter (PImportGroup _ _, _) = True
-        doFilter _ = False
+        doFilter _                     = False
 
 stripPackageInfo :: ProcessedAST -> ProcessedAST
 stripPackageInfo = concatMap doStrip
     where
         sortFn (POldImportCmt line) = T.posOf line
-        sortFn (PRawLine line) = T.posOf line
+        sortFn (PRawLine line)      = T.posOf line
         doStrip :: ProcessedNode -> [ProcessedNode]
         doStrip (PImportGroup info imports) = map (PRawLine . fmap snd) imports
-        doStrip x = [x]
+        doStrip x                           = [x]
 
 stripPackageComments :: ProcessedAST -> ProcessedAST
 stripPackageComments = stripPackageInfo . filter notOldCmt
     where
         notOldCmt (POldImportCmt _) = False
-        notOldCmt _ = True
+        notOldCmt _                 = True
 
 linesPreserve ""  = []
 linesPreserve txt = TxT.split (=='\n') txt
@@ -128,7 +127,7 @@ unlinesPreserve [x]    = x
 unlinesPreserve (x:xs) = x <> "\n" <> unlinesPreserve xs
 
 cmtToTxt (T.SingleLineCmt "") = ""
-cmtToTxt (T.SingleLineCmt c) = "-- " <> c
+cmtToTxt (T.SingleLineCmt c)  = "-- " <> c
 
 unAST :: ProcessedAST -> Text
 unAST = unlinesPreserve . map unpackAST . sortByPos . stripOld
@@ -138,7 +137,7 @@ unAST = unlinesPreserve . map unpackAST . sortByPos . stripOld
         unpackAST (PImportGroup pkg imports) = unlinesPreserve $ cmtToTxt (packageToComment (T.unLocated pkg)):map (snd . T.unLocated) imports
         stripOld = filter (\case
                             POldImportCmt _ -> False
-                            _ -> True
+                            _               -> True
                             )
 
 
@@ -185,15 +184,15 @@ extractImports ctx mod = foldlM  doFold (mempty, mempty) (T.modImports mod)
         doFold (xs, errs) name = do
             minfo <- PKG.providerOfModule ctx (fst $ T.unLocated name)
             pure $ case minfo of
-                Left err -> (xs, (err, name):errs)
+                Left err   -> (xs, (err, name):errs)
                 Right info -> (M.insert info (name:M.findWithDefault [] info xs) xs, errs)
 
 locationSum :: ProcessedAST -> T.Pos
 locationSum [] = T.Pos 0
 locationSum xs = maximum $ map doProcess xs
     where
-        doProcess (POldImportCmt m) = T.posOf m
-        doProcess (PRawLine l) = T.posOf l
+        doProcess (POldImportCmt m)   = T.posOf m
+        doProcess (PRawLine l)        = T.posOf l
         doProcess (PImportGroup n im) = T.posOf n + importDiff im
         importDiff im = sum $ map (\i -> T.Pos (maximum (Util.linesCoveredByImport i)) - T.posOf i) im
 

@@ -6,11 +6,11 @@ module Args (
 )
 where
 
+import           Control.Applicative ( many, (<**>) )
+import           Data.Text           ( Text )
+import qualified Data.Text           as TxT
+import           Options.Applicative ( flag', help, long, metavar, short, strArgument, value, (<|>) )
 import qualified Options.Applicative as ARG
-import Options.Applicative (flag', long, short, help, strArgument, metavar, value, (<|>))
-import Control.Applicative ((<**>), many)
-import Data.Text (Text)
-import qualified Data.Text as TxT
 
 
 data AppFlag = FlagInplace | FlagStripComments deriving(Eq)

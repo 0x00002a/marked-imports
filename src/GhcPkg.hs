@@ -9,17 +9,17 @@ module GhcPkg (
 
 ) where
 
-import Data.Text (Text)
-import qualified Data.Text as TxT
-import qualified Types as T
-import qualified System.Process as SP
-import System.Exit (ExitCode(..))
-import qualified Parser as P
+import qualified Data.Map        as M
+import           Data.Text       ( Text )
+import qualified Data.Text       as TxT
+import           Debug.Trace     ( trace )
+import qualified LUtil           as Util
+import qualified Parser          as P
+import           Prelude         hiding ( lookup )
+import           System.Exit     ( ExitCode (..) )
+import qualified System.Process  as SP
 import qualified Text.Megaparsec as MP
-import qualified LUtil as Util
-import qualified Data.Map as M
-import Debug.Trace (trace)
-import Prelude hiding (lookup)
+import qualified Types           as T
 
 newtype GhcPkgCmd = GhcPkgCmd ([String] -> SP.CreateProcess)
 

@@ -1,24 +1,24 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Packages (mkLocalMatcher, MappingSource(..), LocalPkgMatcher) where
 
-import qualified System.Process as SP
-import qualified Types as T
-import Data.Map (Map)
-import Data.Text (Text)
-import qualified Data.Map as M
-import qualified Text.Megaparsec as MP
-import qualified Data.Text as TxT
-import qualified Parser as P
-import System.Exit (ExitCode(..))
-import qualified System.Directory as SD
-import Data.List (find)
-import Data.Maybe (fromMaybe)
-import qualified LUtil as Util
-import qualified Data.Set as Set
-import Control.Monad.Reader (Reader, runReader)
+import           Control.Monad.Reader ( Reader, runReader )
+import           Data.List            ( find )
+import           Data.Map             ( Map )
+import qualified Data.Map             as M
+import           Data.Maybe           ( fromMaybe )
+import qualified Data.Set             as Set
+import           Data.Text            ( Text )
+import qualified Data.Text            as TxT
+import qualified LUtil                as Util
+import qualified Parser               as P
+import qualified System.Directory     as SD
+import           System.Exit          ( ExitCode (..) )
+import qualified System.Process       as SP
+import qualified Text.Megaparsec      as MP
+import qualified Types                as T
 
 mkLocalMatcher :: MappingSource s => s -> LocalPkgMatcher s
 mkLocalMatcher = LocalPkgMatcher

@@ -1,6 +1,6 @@
 module Types where
 
-import Data.Text (Text)
+import           Data.Text       ( Text )
 import qualified Text.Megaparsec as MP
 
 type ErrMsg = Text
