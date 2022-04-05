@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE RankNTypes #-}
 module Main where
 
 import qualified Args               as ARG
@@ -15,15 +16,20 @@ import qualified System.Directory   as DIR
 import qualified System.Environment as SE
 import qualified System.IO          as IO
 import qualified Types              as T
+import qualified Packages as PKG
 
 
 main :: IO ()
 main = ARG.exec >>= handleArgs
 
+data RunCtx = RunCtx { rTargetFile :: !Text, rArgs :: ARG.AppOpts }
+
 --run :: Text -> IO (Text, Text)
-run name f = do
+run rctx ctx f = do
+    let name = rTargetFile ctx
     content <- readInput name
-    Lib.runT (T.SourceInfo name content) f
+    Lib.runWithCtxT (T.ok rctx) (T.SourceInfo name content) f
+
 
 readInput :: Text -> IO Text
 readInput "-"  = TxT.hGetContents IO.stdin
@@ -43,20 +49,33 @@ placeLocalLowest ast = Lib.sortImportsOn (\pkg -> if (T.pkgName pkg) == "local"
                         else 0
                         ) ast
 
+
+
 handleArgs args
-    | isJust (find (== ARG.FlagInplace) (ARG.appFlags args)) = do
+    | isJust (find (== ARG.FlagInplace) (ARG.appFlags args)) = runWith $ \result ctx -> do
+            let inputName = TxT.unpack $ rTargetFile ctx
             tmpDir <- DIR.getTemporaryDirectory
             (fp, file) <- IO.openTempFile tmpDir "marked-imports.inplace.tmp"
             rs <- result
             writeOutput file inputName rs
             IO.hClose file
-            catch (DIR.renameFile fp inputName) (copyOtherwise fp)
-    | otherwise = do
+            catch (DIR.renameFile fp inputName) (copyOtherwise fp inputName)
+    | otherwise = runWith $ \result ctx -> do
+        let inputName = TxT.unpack $ rTargetFile ctx
         rs <- result
         writeOutput IO.stdout inputName rs
     where
-        result = run (ARG.appInput args) (Lib.addLinesBeforeGroups whitespace . Lib.stripWhitespaceBetweenImports . placeLocalLowest . maybeStrip (ARG.appFlags args))
-        inputName = TxT.unpack $ ARG.appInput args
+        runWith f = do
+            let ctxs = makeRunContexts
+            ectx <- makeCtx
+            either (\err -> putStrLn $ "failed to init ghc package database: " <> TxT.unpack err)
+                (\ctx -> mapM_ (\c -> flip f c $ run ctx c transforms) ctxs) ectx
+        makeCtx = Lib.mkPkgLookupCtx
+        makeRunContexts = map makeRunContext (ARG.appInput args)
+        --makeRunContext :: (forall s. PKG.MappingSource s => s) -> Text -> RunCtx
+        makeRunContext file = RunCtx file args
+        transforms = Lib.addLinesBeforeGroups whitespace . Lib.stripWhitespaceBetweenImports . placeLocalLowest . maybeStrip (ARG.appFlags args)
+
         whitespace = ARG.appWhitespace args
-        copyOtherwise :: String -> IOException -> IO ()
-        copyOtherwise fp _ = DIR.copyFile fp inputName >> DIR.removeFile fp
+        copyOtherwise :: String -> String -> IOException -> IO ()
+        copyOtherwise fp n _ = DIR.copyFile fp n >> DIR.removeFile fp

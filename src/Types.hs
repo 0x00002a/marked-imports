@@ -56,3 +56,6 @@ err = Left
 ok :: a -> Result a
 ok = Right
 
+
+
+
