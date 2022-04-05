@@ -4,6 +4,7 @@
 module Lib
     ( run, runWithCtx, mkPkgLookupCtx, mkAndPopulateStackDb, parseToAST,
     unAST, stripPackageComments, runT, sortImportsOn, addLinesBeforeGroups, ProcessedNode(..), locationSum, runWithCtxT
+    , stripWhitespaceBetweenImports
     ) where
 
 import           Control.Arrow      ( first, second )
@@ -14,7 +15,7 @@ import           Data.Foldable      ( foldlM, toList )
 import           Data.List          ( find, sort, sortOn )
 import           Data.Map           ( Map )
 import qualified Data.Map           as M
-import           Data.Maybe         ( catMaybes, fromJust, fromMaybe, isJust )
+import           Data.Maybe         ( catMaybes, fromJust, fromMaybe, isJust, isNothing )
 import qualified Data.Set           as Set
 import           Data.Text          ( Text, pack, unpack )
 import qualified Data.Text          as TxT
@@ -76,6 +77,19 @@ sortOnPos = sortOn unLoc
 offsetBy :: T.Pos -> ProcessedNode -> ProcessedNode
 offsetBy p n = setLoc n (unLoc n + p)
 
+stripWhitespaceBetweenImports :: ProcessedAST -> ProcessedAST
+stripWhitespaceBetweenImports xs = filter (\x -> isNothing (find (== x) stripped)) xs
+    where
+        imports = concatMap (\(PImportGroup _ imps) -> imps) $ filter filterByImpGroup xs
+        importLines = map T.posOf imports
+        minmax = case importLines of
+            [] -> Nothing
+            xs -> Just (minimum xs, maximum xs)
+        inStripZone x = (\(min, max) -> T.posOf x >= min && T.posOf x <= max) <$> minmax
+        filterByStrip = filter (\(PRawLine x) -> fromMaybe False (inStripZone x) && T.unLocated x == "")
+        filterByLine = filter isRawLine
+        stripped = (filterByStrip . filterByLine) xs
+
 addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
 addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
     where
@@ -89,6 +103,8 @@ addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
 
 filterByImpGroup (PImportGroup _ _) = True
 filterByImpGroup _                  = False
+isRawLine (PRawLine _) = True
+isRawLine _ = False
 
 sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
 sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
