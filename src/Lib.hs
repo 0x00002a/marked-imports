@@ -36,6 +36,9 @@ type ProcessedAST = [ProcessedNode]
 
 type ProcessErr = (Text, T.Located T.ImportDecl)
 
+instance Ord ProcessedNode where
+    x <= y = unLoc x <= unLoc y
+
 instance (GPKG.Database db) => PKG.MappingSource (GhcPkgDbSource db) where
     providerOfModule (GhcPkgDbSource db) name = pure $
             maybe (Left "could not find package") Right $ T.pkgInfo <$> GPKG.lookup db name
@@ -77,18 +80,19 @@ sortOnPos = sortOn unLoc
 offsetBy :: T.Pos -> ProcessedNode -> ProcessedNode
 offsetBy p n = setLoc n (unLoc n + p)
 
+type ASTParser = MP.Parsec Text ProcessedAST
+
 stripWhitespaceBetweenImports :: ProcessedAST -> ProcessedAST
-stripWhitespaceBetweenImports xs = filter (\x -> isNothing (find (== x) stripped)) xs
+stripWhitespaceBetweenImports xs = fromJust $ MP.parseMaybe doParse xs
     where
-        imports = concatMap (\(PImportGroup _ imps) -> imps) $ filter filterByImpGroup xs
-        importLines = map T.posOf imports
-        minmax = case importLines of
-            [] -> Nothing
-            xs -> Just (minimum xs, maximum xs)
-        inStripZone x = (\(min, max) -> T.posOf x >= min && T.posOf x <= max) <$> minmax
-        filterByStrip = filter (\(PRawLine x) -> fromMaybe False (inStripZone x) && T.unLocated x == "")
-        filterByLine = filter isRawLine
-        stripped = (filterByStrip . filterByLine) xs
+        parseEmptyLine :: ASTParser ProcessedNode
+        parseEmptyLine = MP.satisfy (\case
+            PRawLine mp -> T.unLocated mp == ""
+            _ -> False)
+        parseImport :: ASTParser ProcessedNode
+        parseImport = MP.satisfy filterByImpGroup
+        stripPrefix = MP.skipManyTill parseEmptyLine parseImport
+        doParse = MP.manyTill (MP.try stripPrefix MP.<|> MP.anySingle) MP.eof
 
 addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
 addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
@@ -233,7 +237,6 @@ modifyContent mapCtx txt mod = do
         oldComments pkgs = filter (`Set.notMember` pkgCmts pkgs) . Set.toList . pkgCmts . M.keysSet
             where
                 pkgCmts = Set.map (cmtToTxt . packageToComment)
-        --commented :: Map T.PackageInfo [T.Located T.ImportDecl] -> ProcessedAST
         commented start = foldl toCommentGroup start . M.toList
         foldLines :: Map T.PackageInfo [T.Located T.ImportDecl] -> [ProcessedNode] -> Int -> Text -> [ProcessedNode]
         foldLines imports result lineNb line

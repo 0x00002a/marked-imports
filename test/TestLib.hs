@@ -83,11 +83,32 @@ spec = context "lib tests" $ do
         let funcCtx "S" = "m1"
             funcCtx _ = "z"
         checkWithImports modules funcCtx
+    it "strips whitespace right" $ do
+        let input = [r|
+module M where
+
+{- 
+    Some
+
+    Text
+    -}
+-- test
+import X.Y
+import H.Z
+        |]
+        rs <- L.runWithCtxT (TUtil.mkDummyCtx "test") (testSrc input) L.stripWhitespaceBetweenImports
+        rs `shouldOutputOk` input
     describe "locationSum" $ do
         it "produces input for single" $ do
             L.locationSum [L.PRawLine (T.Located 1 "")] `shouldBe` 1
         it "produces max for double" $ do
             L.locationSum [L.PRawLine (T.Located 1 ""), L.PRawLine (T.Located 3 "")] `shouldBe` 3
+    describe "stripWhitespaceBetweenImports" $ do
+        it "produces input minus whitespace and preserves comments" $ do
+            let inlines = ["module M", "{-", "some", "text", "-}"]
+            let inlinesRaw = Util.foldlWithIndex (\xs i x -> xs <> [L.PRawLine (T.Located i x)]) mempty inlines
+            let input = inlinesRaw <> [L.PImportGroup (T.Located 5 (T.PackageInfo "b")) [T.Located 5 (T.ModuleName "M2", "import M2")]]
+            L.stripWhitespaceBetweenImports input `shouldBe` input
     describe "addLinesBeforeGroups" $ do
         it "adds n blank lines" $ do
             let input = [L.PImportGroup (T.Located 1 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")]]
