@@ -17,8 +17,8 @@ import qualified Data.Text             as TxT
 import           LUtil                 ( (><>) )
 import qualified LUtil                 as Util
 import qualified Text.Megaparsec       as MP
+import           Text.Megaparsec.Debug ( dbg )
 import qualified Types                 as T
-import Text.Megaparsec.Debug (dbg)
 
 type Parser a = MP.Parsec Text Text a
 

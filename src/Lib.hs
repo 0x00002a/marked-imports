@@ -104,7 +104,7 @@ addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
 filterByImpGroup (PImportGroup _ _) = True
 filterByImpGroup _                  = False
 isRawLine (PRawLine _) = True
-isRawLine _ = False
+isRawLine _            = False
 
 sortImportsOn :: (Num n, Ord n) => (T.PackageInfo -> n) -> ProcessedAST -> ProcessedAST
 sortImportsOn f ast = sortedPkgs <> map fst nonPkgs
