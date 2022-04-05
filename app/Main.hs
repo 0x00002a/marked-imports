@@ -6,7 +6,7 @@ import qualified Args               as ARG
 import           Control.Exception  ( IOException, catch )
 import           Data.Bifunctor     ( Bifunctor (bimap) )
 import           Data.List          ( find )
-import           Data.Maybe         ( isJust )
+import           Data.Maybe         ( isJust, fromMaybe )
 import           Data.Text          ( Text, pack, unpack )
 import qualified Data.Text          as TxT
 import qualified Data.Text.IO       as TxT
@@ -55,7 +55,8 @@ handleArgs args
         rs <- result
         writeOutput IO.stdout inputName rs
     where
-        result = run (ARG.appInput args) (Lib.addLinesBeforeGroups 2 . Lib.stripWhitespaceBetweenImports . placeLocalLowest . maybeStrip (ARG.appFlags args))
+        result = run (ARG.appInput args) (Lib.addLinesBeforeGroups whitespace . Lib.stripWhitespaceBetweenImports . placeLocalLowest . maybeStrip (ARG.appFlags args))
         inputName = TxT.unpack $ ARG.appInput args
+        whitespace = ARG.appWhitespace args
         copyOtherwise :: String -> IOException -> IO ()
         copyOtherwise fp _ = DIR.copyFile fp inputName >> DIR.removeFile fp
