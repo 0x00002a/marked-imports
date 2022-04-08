@@ -91,7 +91,8 @@ stripWhitespaceBetweenImports xs = fromJust $ MP.parseMaybe doParse xs
             _ -> False)
         parseImport :: ASTParser ProcessedNode
         parseImport = MP.satisfy filterByImpGroup
-        stripPrefix = MP.skipManyTill parseEmptyLine parseImport
+        parseImportSect = MP.optional (MP.satisfy isOldCmt) *> parseImport
+        stripPrefix = MP.skipManyTill parseEmptyLine parseImportSect <* MP.skipMany parseEmptyLine
         doParse = MP.manyTill (MP.try stripPrefix MP.<|> MP.anySingle) MP.eof
 
 addLinesBeforeGroups :: Int -> ProcessedAST -> ProcessedAST
@@ -105,6 +106,8 @@ addLinesBeforeGroups lines = foldl doMap mempty . sortOnPos
                 offset = lines * (length $ filter filterByImpGroup xs)
         genLines start = foldl (\xs n -> PRawLine (T.Located n ""):xs) mempty [start .. (start + T.Pos lines - 1)]
 
+isOldCmt (POldImportCmt _) = True
+isOldCmt _ = False
 filterByImpGroup (PImportGroup _ _) = True
 filterByImpGroup _                  = False
 isRawLine (PRawLine _) = True

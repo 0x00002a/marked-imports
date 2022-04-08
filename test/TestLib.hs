@@ -98,6 +98,26 @@ import H.Z
         |]
         rs <- L.runWithCtxT (TUtil.mkDummyCtx "test") (testSrc input) L.stripWhitespaceBetweenImports
         rs `shouldOutputOk` input
+    it "strips whitespace after last import" $ do
+        let input = [r|module M where
+
+
+-- test
+import X.Y
+import H.Z
+
+
+some text
+        |]
+
+        let stripped = [r|module M where
+-- test
+import X.Y
+import H.Z
+some text
+        |]
+        rs <- L.runWithCtxT (TUtil.mkDummyCtx "test") (testSrc input) (traceShowId . L.stripWhitespaceBetweenImports)
+        rs `shouldOutputOk` stripped
     describe "locationSum" $ do
         it "produces input for single" $ do
             L.locationSum [L.PRawLine (T.Located 1 "")] `shouldBe` 1
