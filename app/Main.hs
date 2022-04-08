@@ -74,7 +74,7 @@ handleArgs args
         makeRunContexts = map makeRunContext (ARG.appInput args)
         --makeRunContext :: (forall s. PKG.MappingSource s => s) -> Text -> RunCtx
         makeRunContext file = RunCtx file args
-        transforms = Lib.addLinesBeforeGroups whitespace . Lib.stripWhitespaceBetweenImports . placeLocalLowest . maybeStrip (ARG.appFlags args)
+        transforms = placeLocalLowest . maybeStrip (ARG.appFlags args) . Lib.addLinesBeforeGroups whitespace . Lib.stripWhitespaceBetweenImports
 
         whitespace = ARG.appWhitespace args
         copyOtherwise :: String -> String -> IOException -> IO ()

@@ -22,6 +22,7 @@ import qualified Packages          as PKG
 import           Test.QuickCheck   as QC
 import           Text.RawString.QQ
 import Debug.Trace (traceShowId)
+import Data.List (sort)
 
 
 exampleCommentedInput = "module T where\n-- text\nimport Data.Text\n"
@@ -116,23 +117,25 @@ import X.Y
 import H.Z
 some text
         |]
-        rs <- L.runWithCtxT (TUtil.mkDummyCtx "test") (testSrc input) (traceShowId . L.stripWhitespaceBetweenImports)
+        rs <- L.runWithCtxT (TUtil.mkDummyCtx "test") (testSrc input) (L.stripWhitespaceBetweenImports)
         rs `shouldOutputOk` stripped
-    describe "locationSum" $ do
-        it "produces input for single" $ do
-            L.locationSum [L.PRawLine (T.Located 1 "")] `shouldBe` 1
-        it "produces max for double" $ do
-            L.locationSum [L.PRawLine (T.Located 1 ""), L.PRawLine (T.Located 3 "")] `shouldBe` 3
-    describe "stripWhitespaceBetweenImports" $ do
-        it "produces input minus whitespace and preserves comments" $ do
-            let inlines = ["module M", "{-", "some", "text", "-}"]
-            let inlinesRaw = Util.foldlWithIndex (\xs i x -> xs <> [L.PRawLine (T.Located i x)]) mempty inlines
-            let input = inlinesRaw <> [L.PImportGroup (T.Located 5 (T.PackageInfo "b")) [T.Located 5 (T.ModuleName "M2", "import M2")]]
-            L.stripWhitespaceBetweenImports input `shouldBe` input
     describe "addLinesBeforeGroups" $ do
-        it "adds n blank lines" $ do
-            let input = [L.PImportGroup (T.Located 1 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")]]
-            let input' = [L.PRawLine (T.Located 1 ""), L.PImportGroup (T.Located 2 (T.PackageInfo "")) [T.Located 1 (T.ModuleName "M", "import M")], L.PImportGroup (T.Located 4 (T.PackageInfo "")) [T.Located 2 (T.ModuleName "Y", "import Y")], L.PRawLine (T.Located 3 "")]
+        it "adds n blank lines before and after" $ do
+            let input = [
+                    L.PImportGroup (T.Located 1 (T.PackageInfo ""))
+                        [T.Located 1 (T.ModuleName "M", "import M")],
+                    L.PImportGroup (T.Located 2 (T.PackageInfo ""))
+                        [T.Located 2 (T.ModuleName "Y", "import Y")]
+                        ]
+            let input' = [
+                            L.PRawLine (T.Located 1 ""),
+                            L.PImportGroup (T.Located 2 (T.PackageInfo ""))
+                                [T.Located 1 (T.ModuleName "M", "import M")],
+                            L.PRawLine (T.Located 3 ""),
+                            L.PImportGroup (T.Located 4 (T.PackageInfo ""))
+                                [T.Located 2 (T.ModuleName "Y", "import Y")],
+                            L.PRawLine (T.Located 5 "")
+                        ]
             let rs = L.addLinesBeforeGroups 1 input
             rs `shouldMatchList` input'
     it "handles case with =>" $ do
